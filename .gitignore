@@ -1,0 +1,9 @@
+.stack-work/
+dist-newstyle/
+*.o
+*.hi
+*.dyn_o
+*.dyn_hi
+.hie/
+tags
+TAGS

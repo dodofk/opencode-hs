@@ -1,0 +1,11 @@
+resolver: lts-22.39  # GHC 9.6.6
+
+packages:
+  - .
+
+extra-deps:
+  - mcp-server-0.1.0.19
+
+# Silence Stack's update nag
+nix:
+  enable: false

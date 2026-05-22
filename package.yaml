@@ -1,0 +1,122 @@
+name:                opencode-hs
+version:             0.1.0.0
+synopsis:            A Haskell reimplementation of the OpenCode CLI agent
+description:         Terminal-based AI coding agent with streaming LLM support,
+                     type-safe tool system, SQLite session history, and brick TUI.
+author:              dodofk
+maintainer:          ricky.16811@gmail.com
+license:             MIT
+github:              dodofk/opencode-hs
+
+ghc-options:
+  - -Wall
+  - -Wcompat
+  - -Widentities
+  - -Wincomplete-record-updates
+  - -Wincomplete-uni-patterns
+  - -Wmissing-export-lists
+  - -Wno-unused-top-binds   # relax for skeletons; tighten per-module later
+
+language: GHC2021
+
+default-extensions:
+  - OverloadedStrings
+  - LambdaCase
+  - TupleSections
+  - ScopedTypeVariables
+  - DerivingStrategies
+  - DeriveGeneric
+  - DeriveAnyClass
+  - GeneralizedNewtypeDeriving
+
+dependencies:
+  # Core
+  - base >= 4.17 && < 5
+  - text >= 2.0
+  - bytestring >= 0.11
+  - containers >= 0.6
+  - unordered-containers >= 0.2
+  # Time
+  - time >= 1.12
+  # JSON / YAML
+  - aeson >= 2.2
+  - yaml >= 0.11
+  # HTTP + streaming
+  - http-conduit >= 2.3.8
+  - http-types >= 0.12
+  - conduit >= 1.3.5
+  - conduit-extra >= 1.3
+  # SQLite
+  - sqlite-simple >= 0.4.18
+  # TUI
+  - brick >= 2.3
+  - vty >= 6.1
+  # UUID
+  - uuid >= 1.3
+  # Async / concurrency
+  - async >= 2.2
+  - stm >= 2.5
+  # Process
+  - process >= 1.6
+  # File utilities
+  - filepath >= 1.4
+  - directory >= 1.3
+  - Glob >= 0.10
+  # Logging
+  - fast-logger >= 3.2
+  # CLI
+  - optparse-applicative >= 0.18
+  # Diff (for EditFile)
+  - Diff >= 0.4
+  # MCP
+  - mcp-server >= 0.1.0.19
+
+library:
+  source-dirs: src
+  exposed-modules:
+    - OpenCode.App
+    - OpenCode.Config
+    - OpenCode.Types
+    - OpenCode.DB
+    - OpenCode.Session
+    - OpenCode.MCP
+    - OpenCode.LLM.Types
+    - OpenCode.LLM.OpenAI
+    - OpenCode.LLM.Anthropic
+    - OpenCode.LLM.Request
+    - OpenCode.Tool.Types
+    - OpenCode.Tool.ReadFile
+    - OpenCode.Tool.WriteFile
+    - OpenCode.Tool.EditFile
+    - OpenCode.Tool.Bash
+    - OpenCode.Tool.Glob
+    - OpenCode.Tool.Grep
+    - OpenCode.TUI.Types
+    - OpenCode.TUI.Render
+    - OpenCode.TUI.App
+
+executables:
+  opencode-hs:
+    main:         Main.hs
+    source-dirs:  app
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - opencode-hs
+
+tests:
+  opencode-hs-test:
+    main:         Spec.hs
+    source-dirs:  test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - opencode-hs
+      - hspec >= 2.11
+      - hspec-discover >= 2.11
+      - QuickCheck >= 2.14
+      - temporary >= 1.3
