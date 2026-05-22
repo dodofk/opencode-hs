@@ -1,7 +1,7 @@
 -- | Core ADTs shared across the application.
 --
 -- Everything that crosses module boundaries lives here.
--- No module should import from a sibling to get at basic types.
+-- No sibling module should be imported just to get at basic types.
 module OpenCode.Types
   ( -- * Identity wrappers
     SessionId (..)
@@ -10,21 +10,37 @@ module OpenCode.Types
     -- * Provider / model
   , ProviderId (..)
   , ModelId (..)
+    -- * Session
+  , Session (..)
     -- * Messages
   , Role (..)
   , MessagePart (..)
   , Message (..)
     -- * LLM tool protocol
   , ToolCall (..)
+  , ToolArgs (..)
   , ToolResult (..)
     -- * Streaming events
   , StreamEvent (..)
   , Usage (..)
   ) where
 
-import Data.Aeson (FromJSON, ToJSON)
+import Data.Aeson
+  ( FromJSON (..)
+  , ToJSON (..)
+  , Value (..)
+  , genericParseJSON
+  , genericToJSON
+  , defaultOptions
+  , withObject
+  , withText
+  , (.:)
+  , object
+  , (.=)
+  )
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Time (UTCTime)
 import GHC.Generics (Generic)
 
@@ -40,7 +56,7 @@ newtype MessageId = MessageId {unMessageId :: Text}
   deriving stock (Show, Eq, Ord, Generic)
   deriving newtype (FromJSON, ToJSON)
 
--- | Opaque API key — never printed via Show.
+-- | Opaque API key — deliberately not shown via Show.
 newtype ApiKey = ApiKey {unApiKey :: Text}
   deriving stock (Eq, Generic)
   deriving newtype (FromJSON, ToJSON)
@@ -50,20 +66,53 @@ instance Show ApiKey where
 
 -- ---------------------------------------------------------------------------
 -- Provider / model
+--
+-- JSON representation uses lowercase strings ("openai", "anthropic") so that
+-- the config YAML is human-friendly.
 -- ---------------------------------------------------------------------------
 
 data ProviderId
   = OpenAI
   | Anthropic
   deriving stock (Show, Eq, Ord, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+
+instance ToJSON ProviderId where
+  toJSON OpenAI    = String "openai"
+  toJSON Anthropic = String "anthropic"
+
+instance FromJSON ProviderId where
+  parseJSON = withText "ProviderId" $ \t -> case t of
+    "openai"    -> pure OpenAI
+    "anthropic" -> pure Anthropic
+    other       -> fail $ "Unknown provider id: " <> Text.unpack other
 
 data ModelId = ModelId
   { provider :: ProviderId
   , model    :: Text
   }
   deriving stock (Show, Eq, Ord, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+
+instance ToJSON ModelId where
+  toJSON m = object ["provider" .= provider m, "model" .= model m]
+
+instance FromJSON ModelId where
+  parseJSON = withObject "ModelId" $ \o ->
+    ModelId <$> o .: "provider" <*> o .: "model"
+
+-- ---------------------------------------------------------------------------
+-- Session
+-- ---------------------------------------------------------------------------
+
+data Session = Session
+  { sessionId      :: SessionId
+  , sessionTitle   :: Text
+  , sessionModel   :: ModelId
+  , sessionCreated :: UTCTime
+  }
+  deriving stock (Show, Eq, Generic)
+
+instance ToJSON   Session where toJSON   = genericToJSON   defaultOptions
+instance FromJSON Session where parseJSON = genericParseJSON defaultOptions
 
 -- ---------------------------------------------------------------------------
 -- Messages
@@ -74,7 +123,9 @@ data Role
   | RoleAssistant
   | RoleTool
   deriving stock (Show, Eq, Ord, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+
+instance ToJSON   Role where toJSON   = genericToJSON   defaultOptions
+instance FromJSON Role where parseJSON = genericParseJSON defaultOptions
 
 data MessagePart
   = TextPart Text
@@ -82,7 +133,9 @@ data MessagePart
   | ToolResultPart ToolResult
   | ErrorPart Text
   deriving stock (Show, Eq, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+
+instance ToJSON   MessagePart where toJSON   = genericToJSON   defaultOptions
+instance FromJSON MessagePart where parseJSON = genericParseJSON defaultOptions
 
 data Message = Message
   { msgId      :: MessageId
@@ -91,7 +144,9 @@ data Message = Message
   , msgCreated :: UTCTime
   }
   deriving stock (Show, Eq, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+
+instance ToJSON   Message where toJSON   = genericToJSON   defaultOptions
+instance FromJSON Message where parseJSON = genericParseJSON defaultOptions
 
 -- ---------------------------------------------------------------------------
 -- Tool call / result
@@ -103,9 +158,11 @@ data ToolCall = ToolCall
   , arguments :: ToolArgs
   }
   deriving stock (Show, Eq, Generic)
-  deriving anyclass (FromJSON, ToJSON)
 
--- | Raw JSON arguments passed to a tool (object shape determined per-tool).
+instance ToJSON   ToolCall where toJSON   = genericToJSON   defaultOptions
+instance FromJSON ToolCall where parseJSON = genericParseJSON defaultOptions
+
+-- | Raw JSON arguments, stored as a text blob to avoid re-parsing.
 newtype ToolArgs = ToolArgs {unToolArgs :: Text}
   deriving stock (Show, Eq, Generic)
   deriving newtype (FromJSON, ToJSON)
@@ -116,7 +173,9 @@ data ToolResult = ToolResult
   , isError      :: Bool
   }
   deriving stock (Show, Eq, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+
+instance ToJSON   ToolResult where toJSON   = genericToJSON   defaultOptions
+instance FromJSON ToolResult where parseJSON = genericParseJSON defaultOptions
 
 -- ---------------------------------------------------------------------------
 -- Streaming events
@@ -124,13 +183,15 @@ data ToolResult = ToolResult
 
 data StreamEvent
   = TextDelta Text
-  | ToolCallStart Text Text        -- ^ callId toolName
-  | ToolCallArgDelta Text Text     -- ^ callId argFragment
-  | ToolCallEnd Text               -- ^ callId (arguments fully received)
+  | ToolCallStart Text Text       -- ^ callId toolName
+  | ToolCallArgDelta Text Text    -- ^ callId argFragment
+  | ToolCallEnd Text              -- ^ callId (arguments fully received)
   | StreamDone Usage
   | StreamError Text
   deriving stock (Show, Eq, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+
+instance ToJSON   StreamEvent where toJSON   = genericToJSON   defaultOptions
+instance FromJSON StreamEvent where parseJSON = genericParseJSON defaultOptions
 
 data Usage = Usage
   { inputTokens  :: Int
@@ -139,4 +200,6 @@ data Usage = Usage
   , cacheWrite   :: Maybe Int
   }
   deriving stock (Show, Eq, Generic)
-  deriving anyclass (FromJSON, ToJSON)
+
+instance ToJSON   Usage where toJSON   = genericToJSON   defaultOptions
+instance FromJSON Usage where parseJSON = genericParseJSON defaultOptions

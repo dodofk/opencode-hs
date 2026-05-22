@@ -1,0 +1,175 @@
+module OpenCode.ConfigSpec (spec) where
+
+import Data.Maybe (isNothing)
+import Data.Text (Text)
+import System.FilePath ((</>))
+import System.IO.Temp (withSystemTempDirectory)
+import Test.Hspec
+
+import OpenCode.Config
+import OpenCode.Types
+
+-- ---------------------------------------------------------------------------
+-- Spec
+-- ---------------------------------------------------------------------------
+
+spec :: Spec
+spec = do
+  describe "buildConfig" $ do
+
+    it "succeeds with an OpenAI key in YAML" $
+      buildConfig (cfWithOpenAI "sk-test") noEnv
+        `shouldSatisfy` isRight
+
+    it "succeeds with an Anthropic key in YAML" $
+      buildConfig (cfWithAnthropic "sk-ant-test") noEnv
+        `shouldSatisfy` isRight
+
+    it "fails with no keys anywhere" $
+      buildConfig emptyConfigFile noEnv
+        `shouldSatisfy` isLeft
+
+    it "env var satisfies missing YAML key" $
+      buildConfig emptyConfigFile (anthropicEnv "sk-ant-env")
+        `shouldSatisfy` isRight
+
+    it "env var takes priority over YAML key" $ do
+      let cfg = cfWithAnthropic "sk-ant-yaml"
+          env = anthropicEnv "sk-ant-env"
+      case buildConfig cfg env of
+        Left  err -> expectationFailure (show err)
+        Right c   ->
+          anthropicKey (providers c) `shouldBe` Just (ApiKey "sk-ant-env")
+
+    it "both providers can be set simultaneously" $ do
+      let cfg = cfWithBoth "sk-openai" "sk-ant"
+      case buildConfig cfg noEnv of
+        Left  err -> expectationFailure (show err)
+        Right c   -> do
+          openaiKey    (providers c) `shouldBe` Just (ApiKey "sk-openai")
+          anthropicKey (providers c) `shouldBe` Just (ApiKey "sk-ant")
+
+    it "openai-only config leaves anthropicKey as Nothing" $ do
+      case buildConfig (cfWithOpenAI "sk-openai") noEnv of
+        Left  err -> expectationFailure (show err)
+        Right c   -> anthropicKey (providers c) `shouldSatisfy` isNothing
+
+    it "uses Anthropic fallback model when none specified" $ do
+      case buildConfig (cfWithAnthropic "sk-ant") noEnv of
+        Left  err -> expectationFailure (show err)
+        Right c   -> provider (defaultModel c) `shouldBe` Anthropic
+
+    it "uses model specified in config" $ do
+      let cfg = cfWithOpenAIAndModel "sk-openai" OpenAI "gpt-4o"
+      case buildConfig cfg noEnv of
+        Left  err -> expectationFailure (show err)
+        Right c   -> do
+          model    (defaultModel c) `shouldBe` "gpt-4o"
+          provider (defaultModel c) `shouldBe` OpenAI
+
+  describe "loadConfigFile" $ do
+
+    it "returns Right for a missing file (fresh install)" $
+      withSystemTempDirectory "opencode-hs-test" $ \tmpDir -> do
+        result <- loadConfigFile (tmpDir </> "does-not-exist.yaml")
+        result `shouldSatisfy` isRight
+
+    it "parses a minimal valid YAML file" $
+      withSystemTempDirectory "opencode-hs-test" $ \tmpDir -> do
+        let path = tmpDir </> "config.yaml"
+        writeFile path
+          "providers:\n\
+          \  anthropic:\n\
+          \    apiKey: sk-ant-file\n"
+        result <- loadConfigFile path
+        result `shouldSatisfy` isRight
+
+    it "returns ConfigParseError for malformed YAML" $
+      withSystemTempDirectory "opencode-hs-test" $ \tmpDir -> do
+        let path = tmpDir </> "bad.yaml"
+        writeFile path "{ not: valid: yaml: ]["
+        result <- loadConfigFile path
+        result `shouldSatisfy` isLeft
+
+    it "round-trips provider key through YAML" $
+      withSystemTempDirectory "opencode-hs-test" $ \tmpDir -> do
+        let path = tmpDir </> "config.yaml"
+        writeFile path
+          "providers:\n\
+          \  openai:\n\
+          \    apiKey: sk-from-file\n"
+        cfResult <- loadConfigFile path
+        case cfResult >>= \cf -> buildConfig cf noEnv of
+          Left  err -> expectationFailure (show err)
+          Right c   ->
+            openaiKey (providers c) `shouldBe` Just (ApiKey "sk-from-file")
+
+    it "parses defaultModel from YAML" $
+      withSystemTempDirectory "opencode-hs-test" $ \tmpDir -> do
+        let path = tmpDir </> "config.yaml"
+        writeFile path
+          "providers:\n\
+          \  openai:\n\
+          \    apiKey: sk-openai\n\
+          \defaultModel:\n\
+          \  provider: openai\n\
+          \  model: gpt-4o\n"
+        cfResult <- loadConfigFile path
+        case cfResult >>= \cf -> buildConfig cf noEnv of
+          Left  err -> expectationFailure (show err)
+          Right c   -> do
+            model    (defaultModel c) `shouldBe` "gpt-4o"
+            provider (defaultModel c) `shouldBe` OpenAI
+
+-- ---------------------------------------------------------------------------
+-- Test fixtures
+-- ---------------------------------------------------------------------------
+
+noEnv :: EnvOverride
+noEnv = EnvOverride Nothing Nothing
+
+openaiEnv :: Text -> EnvOverride
+openaiEnv k = EnvOverride (Just (ApiKey k)) Nothing
+
+anthropicEnv :: Text -> EnvOverride
+anthropicEnv k = EnvOverride Nothing (Just (ApiKey k))
+
+cfWithOpenAI :: Text -> ConfigFile
+cfWithOpenAI k = emptyConfigFile
+  { cfProviders = Just ProviderConfigFile
+      { cfOpenai    = Just (ApiKeyFile (ApiKey k))
+      , cfAnthropic = Nothing
+      }
+  }
+
+cfWithAnthropic :: Text -> ConfigFile
+cfWithAnthropic k = emptyConfigFile
+  { cfProviders = Just ProviderConfigFile
+      { cfOpenai    = Nothing
+      , cfAnthropic = Just (ApiKeyFile (ApiKey k))
+      }
+  }
+
+cfWithBoth :: Text -> Text -> ConfigFile
+cfWithBoth oa ant = emptyConfigFile
+  { cfProviders = Just ProviderConfigFile
+      { cfOpenai    = Just (ApiKeyFile (ApiKey oa))
+      , cfAnthropic = Just (ApiKeyFile (ApiKey ant))
+      }
+  }
+
+cfWithOpenAIAndModel :: Text -> ProviderId -> Text -> ConfigFile
+cfWithOpenAIAndModel k prov mdl = (cfWithOpenAI k)
+  { cfDefaultModel = Just ModelIdFile { mfProvider = prov, mfModel = mdl }
+  }
+
+-- ---------------------------------------------------------------------------
+-- Predicates (avoid importing Data.Either which may vary)
+-- ---------------------------------------------------------------------------
+
+isRight :: Either a b -> Bool
+isRight (Right _) = True
+isRight _         = False
+
+isLeft :: Either a b -> Bool
+isLeft = not . isRight
