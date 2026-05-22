@@ -3,9 +3,13 @@ resolver: lts-22.39  # GHC 9.6.6
 packages:
   - .
 
-extra-deps:
-  - mcp-server-0.1.0.19
+extra-deps: []
+  # mcp-server-0.1.0.19 deferred to M6 (needs aeson/network-uri instance fix)
 
-# Silence Stack's update nag
+# macOS: ffi.h lives inside the CommandLineTools SDK, not the default include path.
+# Required to build C-FFI packages (basement, cryptohash-md5, etc.).
+extra-include-dirs:
+  - /Library/Developer/CommandLineTools/SDKs/MacOSX12.1.sdk/usr/include/ffi
+
 nix:
   enable: false

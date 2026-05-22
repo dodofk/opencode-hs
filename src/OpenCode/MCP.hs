@@ -1,5 +1,8 @@
 -- | MCP (Model Context Protocol) client adapter.
 -- Connects to stdio MCP servers and merges their tools into the registry.
+--
+-- NOTE: mcp-server Hackage package is wired in during M6.
+-- The stubs here use plain IO so the module compiles without it.
 module OpenCode.MCP
   ( McpClient (..)
   , connectMcpStdio
@@ -22,4 +25,4 @@ data McpClient = McpClient
 -- ---------------------------------------------------------------------------
 
 connectMcpStdio :: FilePath -> [Text] -> IO McpClient
-connectMcpStdio _ _ = error "OpenCode.MCP.connectMcpStdio: not yet implemented"
+connectMcpStdio _ _ = error "OpenCode.MCP.connectMcpStdio: not yet implemented (M6)"

@@ -3,7 +3,6 @@ module OpenCode.LLM.Anthropic
   ( AnthropicProvider (..)
   ) where
 
-import Conduit (ConduitT)
 import Data.Text (Text)
 import OpenCode.LLM.Types (LLMProvider (..), LLMRequest)
 import OpenCode.Types (StreamEvent)
@@ -22,4 +21,8 @@ data AnthropicProvider = AnthropicProvider
 -- ---------------------------------------------------------------------------
 
 instance LLMProvider AnthropicProvider where
-  streamCompletion _ _ = error "OpenCode.LLM.Anthropic: not yet implemented"
+  streamCompletion _ _ = error "OpenCode.LLM.Anthropic: not yet implemented (M3c)"
+
+-- Silence unused-import warnings for types needed in M3c
+_unused :: (LLMRequest, StreamEvent) -> ()
+_unused _ = ()

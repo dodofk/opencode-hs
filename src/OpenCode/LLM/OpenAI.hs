@@ -1,9 +1,9 @@
 -- | OpenAI provider: streaming completions via SSE.
 module OpenCode.LLM.OpenAI
   ( OpenAIProvider (..)
+  , defaultOpenAI
   ) where
 
-import Conduit (ConduitT)
 import Data.Text (Text)
 import OpenCode.LLM.Types (LLMProvider (..), LLMRequest)
 import OpenCode.Types (StreamEvent)
@@ -23,7 +23,7 @@ data OpenAIProvider = OpenAIProvider
 -- ---------------------------------------------------------------------------
 
 instance LLMProvider OpenAIProvider where
-  streamCompletion _ _ = error "OpenCode.LLM.OpenAI: not yet implemented"
+  streamCompletion _ _ = error "OpenCode.LLM.OpenAI: not yet implemented (M3b)"
 
 -- | Default provider pointing at the public OpenAI endpoint.
 defaultOpenAI :: Text -> OpenAIProvider
@@ -31,8 +31,7 @@ defaultOpenAI key = OpenAIProvider
   { apiKey  = key
   , baseUrl = "https://api.openai.com"
   }
-{-# INLINE defaultOpenAI #-}
 
--- Silence unused warning until M3b
-_defaultOpenAI :: Text -> OpenAIProvider
-_defaultOpenAI = defaultOpenAI
+-- Silence unused-import warnings for types needed in M3b
+_unused :: (LLMRequest, StreamEvent) -> ()
+_unused _ = ()

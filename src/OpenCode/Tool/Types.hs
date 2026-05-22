@@ -135,10 +135,10 @@ lookupTool name (ToolRegistry m) = Map.lookup name m
 
 -- | Convert a registry entry to the wire format sent to the LLM.
 someToolDefinition :: SomeTool -> ToolDefinition
-someToolDefinition SomeTool{..} = ToolDefinition
-  { tdName        = toolName
-  , tdDescription = toolDesc
-  , tdSchema      = toolSchema
+someToolDefinition t = ToolDefinition
+  { tdName        = toolName t
+  , tdDescription = toolDesc t
+  , tdSchema      = toolSchema t
   }
 
 -- Suppress unused warning until M3

@@ -5,6 +5,7 @@ module OpenCode.LLM.Request
   ) where
 
 import Data.ByteString (ByteString)
+import Data.ByteString qualified as BS
 import Data.Text (Text)
 import OpenCode.LLM.Types (ToolDefinition)
 
@@ -14,12 +15,9 @@ buildSystemPrompt :: [ToolDefinition] -> Text
 buildSystemPrompt _ = "You are a helpful AI coding assistant."
 
 -- | Extract the payload from an SSE @data:@ line.
--- Returns @Nothing@ for lines that are comments, event names, or @[DONE]@.
+-- Returns @Nothing@ for comment lines, event-name lines, and @[DONE]@.
 sseDataLine :: ByteString -> Maybe ByteString
 sseDataLine bs
-  | "data: [DONE]" == bs = Nothing
-  | "data: " `isPrefixOf` bs = Just (drop 6 bs)
-  | otherwise = Nothing
-  where
-    isPrefixOf prefix str = take (length prefix) str == prefix
-    drop = Data.ByteString.drop
+  | bs == "data: [DONE]"     = Nothing
+  | "data: " `BS.isPrefixOf` bs = Just (BS.drop 6 bs)
+  | otherwise                = Nothing
