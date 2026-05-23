@@ -19,6 +19,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Database.SQLite.Simple (Connection)
 import OpenCode.Config (Config)
 
 -- ---------------------------------------------------------------------------
@@ -43,7 +44,7 @@ type AppM = ReaderT AppEnv (ExceptT AppError IO)
 
 data AppEnv = AppEnv
   { envConfig :: Config
-  -- envDb      :: Connection      -- added in M2
+  , envDb     :: Connection
   -- envRegistry :: ToolRegistry   -- added in M4
   -- envEventChan :: BChan …       -- added in M5
   -- envAbort     :: TVar Bool     -- added in M5
