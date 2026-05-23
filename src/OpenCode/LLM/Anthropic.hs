@@ -22,6 +22,6 @@ newtype AnthropicProvider = AnthropicProvider
 instance LLMProvider AnthropicProvider where
   streamCompletion _ _ = error "OpenCode.LLM.Anthropic: not yet implemented (M11)"
 
--- Silence unused-import warnings for types needed in M3c
+-- Silence unused-import warnings for types needed until M11
 _unused :: (LLMRequest, StreamEvent) -> ()
 _unused _ = ()
