@@ -38,16 +38,16 @@ type AppM = ReaderT AppEnv (ExceptT AppError IO)
 -- Fields are added one per milestone:
 --   M1: envConfig
 --   M2: envDb
---   M4: envRegistry
---   M5: envEventChan, envAbort
+--   M5: envRegistry
+--   M6: envEventChan, envAbort
 -- ---------------------------------------------------------------------------
 
 data AppEnv = AppEnv
   { envConfig :: Config
   , envDb     :: Connection
-  -- envRegistry :: ToolRegistry   -- added in M4
-  -- envEventChan :: BChan …       -- added in M5
-  -- envAbort     :: TVar Bool     -- added in M5
+  -- envRegistry :: ToolRegistry   -- added in M5
+  -- envEventChan :: BChan …       -- added in M6
+  -- envAbort     :: TVar Bool     -- added in M6
   }
 
 -- ---------------------------------------------------------------------------
