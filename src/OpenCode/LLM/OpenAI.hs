@@ -14,8 +14,10 @@ module OpenCode.LLM.OpenAI
     -- * Streaming pipeline (internal — exposed for tests)
   , ToolCallAccum
   , processChunk
+  , interpretOpenAIStream
   ) where
 
+import Conduit (ConduitT, MonadIO, await, yield, (.|))
 import Data.Aeson (FromJSON (..), withObject, (.:), (.:?))
 import Data.Aeson qualified as Aeson
 import Data.ByteString (ByteString)
@@ -26,6 +28,7 @@ import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as Text
 
+import OpenCode.LLM.Request qualified as Request
 import OpenCode.LLM.Types (LLMProvider (..), LLMRequest)
 import OpenCode.Types (ApiKey, StreamEvent (..), Usage (..))
 
@@ -203,6 +206,34 @@ toUsage u = Usage
   , cacheRead    = Nothing
   , cacheWrite   = Nothing
   }
+
+-- ---------------------------------------------------------------------------
+-- Pure SSE → StreamEvent pipeline (no HTTP)
+-- ---------------------------------------------------------------------------
+
+-- | Consume a raw SSE byte stream and emit 'StreamEvent's.
+-- Pure with respect to networking; tested directly against fixture bodies.
+interpretOpenAIStream
+  :: MonadIO m
+  => ConduitT ByteString StreamEvent m ()
+interpretOpenAIStream =
+  Request.chunkSSELines
+    .| translateLines
+  where
+    translateLines = go Map.empty
+    go st = do
+      mline <- await
+      case mline of
+        Nothing   -> pure ()
+        Just line -> case Request.sseDataLine line of
+          Nothing       -> go st
+          Just "[DONE]" -> pure ()
+          Just payload  -> case decodeChunk payload of
+            Left _      -> go st   -- ignore malformed chunks; production would log
+            Right chunk -> do
+              let (events, st') = processChunk st chunk
+              mapM_ yield events
+              go st'
 
 -- ---------------------------------------------------------------------------
 -- Instance (implemented in M4)

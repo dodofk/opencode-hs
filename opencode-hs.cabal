@@ -185,6 +185,7 @@ test-suite opencode-hs-test
   other-modules:
       OpenCode.ConfigSpec
       OpenCode.DBSpec
+      OpenCode.LLM.OpenAISpec
       OpenCode.LLM.RequestSpec
       OpenCode.LLMSpec
       OpenCode.SessionSpec

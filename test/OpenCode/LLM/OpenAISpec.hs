@@ -1,6 +1,9 @@
 module OpenCode.LLM.OpenAISpec (spec) where
 
+import Conduit qualified
+import Conduit ((.|))
 import Data.ByteString (ByteString)
+import Data.ByteString qualified as BS
 import Data.Text (Text)
 import Test.Hspec
 
@@ -99,6 +102,45 @@ spec = do
       in events `shouldBe`
            [ StreamDone (Usage 10 2 Nothing Nothing)
            ]
+
+  describe "interpretOpenAIStream" $ do
+
+    it "reassembles a multi-chunk text response into TextDelta + StreamDone" $ do
+      events <- runStream "test/fixtures/openai/text-stream.sse"
+      events `shouldBe`
+        [ TextDelta "Hello"
+        , TextDelta " world"
+        , StreamDone (Usage 10 2 Nothing Nothing)
+        ]
+
+    it "decodes a fragmented tool call into ordered start/delta/end events" $ do
+      events <- runStream "test/fixtures/openai/tool-call-stream.sse"
+      events `shouldBe`
+        [ ToolCallStart "call_abc" "bash"
+        , ToolCallArgDelta "call_abc" "{\""
+        , ToolCallArgDelta "call_abc" "command\":\""
+        , ToolCallArgDelta "call_abc" "echo hi\"}"
+        , ToolCallEnd "call_abc"
+        , StreamDone (Usage 50 15 Nothing Nothing)
+        ]
+
+    it "terminates cleanly on a done-only stream with no events" $ do
+      events <- runStream "test/fixtures/openai/done-only.sse"
+      events `shouldBe` []
+
+-- ---------------------------------------------------------------------------
+-- Fixture replay helper
+-- ---------------------------------------------------------------------------
+
+runStream :: FilePath -> IO [StreamEvent]
+runStream path = do
+  body <- BS.readFile path
+  -- Feed the whole body as a single chunk; chunk-boundary resilience is
+  -- tested separately in OpenCode.LLM.RequestSpec.
+  Conduit.runResourceT $ Conduit.runConduit $
+    Conduit.yieldMany [body]
+      .| interpretOpenAIStream
+      .| Conduit.sinkList
 
 -- ---------------------------------------------------------------------------
 -- Test fixtures: small chunk builders so tests are readable
