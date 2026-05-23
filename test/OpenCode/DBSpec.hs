@@ -95,6 +95,24 @@ spec = do
         result <- getSession conn (SessionId "s-2")
         result `shouldBe` Just s
 
+  describe "listSessions" $ do
+
+    it "returns an empty list when no sessions exist" $
+      withInMemoryDb $ \conn -> do
+        xs <- listSessions conn
+        xs `shouldBe` []
+
+    it "lists sessions ordered by created_at DESC (newest first)" $
+      withInMemoryDb $ \conn -> do
+        let s1 = (sampleSession (SessionId "old"))
+              { sessionCreated = UTCTime (fromGregorian 2026 1 1) 0 }
+            s2 = (sampleSession (SessionId "new"))
+              { sessionCreated = UTCTime (fromGregorian 2026 5 1) 0 }
+        insertSession conn s1
+        insertSession conn s2
+        xs <- listSessions conn
+        map sessionId xs `shouldBe` [SessionId "new", SessionId "old"]
+
 -- ---------------------------------------------------------------------------
 -- Fixtures
 -- ---------------------------------------------------------------------------

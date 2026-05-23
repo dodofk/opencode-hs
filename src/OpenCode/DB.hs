@@ -148,8 +148,18 @@ getSession conn (SessionId sid) = do
         Left err -> error ("OpenCode.DB.getSession: model_id decode failed: " <> err)
         Right m  -> pure (Just (Session (SessionId rid) title m ts))
 
+-- | List all sessions, newest first.
 listSessions :: Connection -> IO [Session]
-listSessions _ = error "OpenCode.DB.listSessions: not yet implemented"
+listSessions conn = do
+  rows <- query_ conn
+    "SELECT id, title, model_id, created_at \
+    \FROM sessions ORDER BY created_at DESC"
+    :: IO [(Text, Text, Text, UTCTime)]
+  pure (map toSession rows)
+  where
+    toSession (sid, title, modelTx, ts) = case decodeJsonText modelTx of
+      Right m  -> Session (SessionId sid) title m ts
+      Left err -> error ("OpenCode.DB.listSessions: model_id decode failed: " <> err)
 
 insertMessage :: Connection -> SessionId -> Message -> IO ()
 insertMessage _ _ _ = error "OpenCode.DB.insertMessage: not yet implemented"
