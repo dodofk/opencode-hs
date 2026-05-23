@@ -2,6 +2,7 @@ module OpenCode.DBSpec (spec) where
 
 import Control.Exception (bracket)
 import Data.Text (Text)
+import Data.Time (UTCTime (..), fromGregorian)
 import Database.SQLite.Simple
   ( Connection
   , Only (..)
@@ -11,6 +12,12 @@ import Database.SQLite.Simple
 import Test.Hspec
 
 import OpenCode.DB
+import OpenCode.Types
+  ( ModelId (..)
+  , ProviderId (..)
+  , Session (..)
+  , SessionId (..)
+  )
 
 -- | Helper: open an in-memory DB with schema applied; close on exit.
 withInMemoryDb :: (Connection -> IO a) -> IO a
@@ -65,3 +72,40 @@ spec = do
           "SELECT version FROM migrations"
           :: IO [Int]
         length versions `shouldBe` 1
+
+  describe "insertSession / getSession" $ do
+
+    it "round-trips a session via insertSession then getSession" $
+      withInMemoryDb $ \conn -> do
+        let s = sampleSession (SessionId "s-1")
+        insertSession conn s
+        result <- getSession conn (SessionId "s-1")
+        result `shouldBe` Just s
+
+    it "returns Nothing for an unknown SessionId" $
+      withInMemoryDb $ \conn -> do
+        result <- getSession conn (SessionId "missing")
+        result `shouldBe` Nothing
+
+    it "round-trips a session with a non-default model" $
+      withInMemoryDb $ \conn -> do
+        let s = (sampleSession (SessionId "s-2"))
+              { sessionModel = ModelId OpenAI "gpt-4o" }
+        insertSession conn s
+        result <- getSession conn (SessionId "s-2")
+        result `shouldBe` Just s
+
+-- ---------------------------------------------------------------------------
+-- Fixtures
+-- ---------------------------------------------------------------------------
+
+t0 :: UTCTime
+t0 = UTCTime (fromGregorian 2026 5 23) 0
+
+sampleSession :: SessionId -> Session
+sampleSession sid = Session
+  { sessionId      = sid
+  , sessionTitle   = "test session"
+  , sessionModel   = ModelId Anthropic "claude-opus-4-7"
+  , sessionCreated = t0
+  }

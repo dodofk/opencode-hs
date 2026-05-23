@@ -28,6 +28,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUID
+import Data.Time (UTCTime)
 import Database.SQLite.Simple
   ( Connection
   , Only (..)
@@ -50,6 +51,7 @@ import OpenCode.Types
   ( Message (..)
   , MessageId (..)
   , MessagePart
+  , ModelId
   , Role (..)
   , Session (..)
   , SessionId (..)
@@ -119,11 +121,32 @@ allMigrations =
 -- Stubs (filled in later tasks of M2)
 -- ---------------------------------------------------------------------------
 
+-- | Insert a session row. Caller supplies the id; use 'newSessionId' to mint one.
 insertSession :: Connection -> Session -> IO ()
-insertSession _ _ = error "OpenCode.DB.insertSession: not yet implemented"
+insertSession conn s = execute conn
+  "INSERT INTO sessions (id, title, model_id, created_at) \
+  \VALUES (?, ?, ?, ?)"
+  ( unSessionId (sessionId s)
+  , sessionTitle s
+  , encodeJsonText (sessionModel s)
+  , sessionCreated s
+  )
 
+-- | Look up a session by id. Returns Nothing if no row matches.
 getSession :: Connection -> SessionId -> IO (Maybe Session)
-getSession _ _ = error "OpenCode.DB.getSession: not yet implemented"
+getSession conn (SessionId sid) = do
+  rows <- query conn
+    "SELECT id, title, model_id, created_at \
+    \FROM sessions WHERE id = ?"
+    (Only sid)
+    :: IO [(Text, Text, Text, UTCTime)]
+  -- PRIMARY KEY on sessions.id guarantees at most one match.
+  case rows of
+    []                              -> pure Nothing
+    ((rid, title, modelTx, ts):_)   ->
+      case decodeJsonText modelTx of
+        Left err -> error ("OpenCode.DB.getSession: model_id decode failed: " <> err)
+        Right m  -> pure (Just (Session (SessionId rid) title m ts))
 
 listSessions :: Connection -> IO [Session]
 listSessions _ = error "OpenCode.DB.listSessions: not yet implemented"
