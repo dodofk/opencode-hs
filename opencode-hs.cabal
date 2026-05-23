@@ -27,11 +27,12 @@ library
       OpenCode.DB
       OpenCode.Session
       OpenCode.MCP
-      OpenCode.LLM.Types
-      OpenCode.LLM.OpenAI
       OpenCode.LLM.Anthropic
+      OpenCode.LLM.Mock
+      OpenCode.LLM.OpenAI
       OpenCode.LLM.Request
       OpenCode.LLM.Schema
+      OpenCode.LLM.Types
       OpenCode.Tool.Types
       OpenCode.Tool.ReadFile
       OpenCode.Tool.WriteFile
@@ -186,10 +187,10 @@ test-suite opencode-hs-test
   other-modules:
       OpenCode.ConfigSpec
       OpenCode.DBSpec
+      OpenCode.LLM.MockSpec
       OpenCode.LLM.OpenAISpec
       OpenCode.LLM.RequestSpec
       OpenCode.LLM.SchemaSpec
-      OpenCode.LLMSpec
       OpenCode.SessionSpec
       OpenCode.ToolSpec
       OpenCode.TypesSpec
