@@ -1,6 +1,7 @@
 module OpenCode.DBSpec (spec) where
 
 import Control.Exception (bracket)
+import Data.List (isSuffixOf, nub)
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -11,6 +12,7 @@ import Database.SQLite.Simple
   , close
   , query_
   )
+import System.FilePath ((</>))
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
@@ -205,6 +207,24 @@ spec = do
           insertMessage conn sid m
           msgs <- getMessages conn sid
           pure (msgs == [m])
+
+  describe "helpers" $ do
+
+    it "defaultDbPath ends with opencode-hs/sessions.db" $ do
+      p <- defaultDbPath
+      (("opencode-hs" </> "sessions.db") `isSuffixOf` p) `shouldBe` True
+
+    it "newSessionId yields a non-empty Text" $ do
+      SessionId t <- newSessionId
+      Text.length t `shouldSatisfy` (> 0)
+
+    it "newSessionId is collision-free across 100 calls" $ do
+      sids <- mapM (const newSessionId) [1 :: Int .. 100]
+      length sids `shouldBe` length (nub sids)
+
+    it "newMessageId yields a non-empty Text" $ do
+      MessageId t <- newMessageId
+      Text.length t `shouldSatisfy` (> 0)
 
 -- ---------------------------------------------------------------------------
 -- Fixtures

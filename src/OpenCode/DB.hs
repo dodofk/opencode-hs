@@ -36,8 +36,10 @@ import Database.SQLite.Simple
   , query_
   , withTransaction
   )
-import System.Directory (createDirectoryIfMissing)
-import System.FilePath (takeDirectory)
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUID
+import System.Directory (XdgDirectory (XdgData), createDirectoryIfMissing, getXdgDirectory)
+import System.FilePath (takeDirectory, (</>))
 
 import OpenCode.Types
   ( Message (..)
@@ -187,14 +189,20 @@ getMessages conn (SessionId sid) = do
             Left err -> error ("OpenCode.DB.getMessages: parts decode: " <> err)
       in Message (MessageId mid) role parts ts
 
-newSessionId :: IO SessionId
-newSessionId = error "OpenCode.DB.newSessionId: not yet implemented"
-
-newMessageId :: IO MessageId
-newMessageId = error "OpenCode.DB.newMessageId: not yet implemented"
-
+-- | Default location for the sessions database, per XDG.
+-- On Linux/macOS: @$HOME/.local/share/opencode-hs/sessions.db@.
 defaultDbPath :: IO FilePath
-defaultDbPath = error "OpenCode.DB.defaultDbPath: not yet implemented"
+defaultDbPath = do
+  dir <- getXdgDirectory XdgData "opencode-hs"
+  pure (dir </> "sessions.db")
+
+-- | Generate a fresh random SessionId (UUIDv4 in hyphenated form).
+newSessionId :: IO SessionId
+newSessionId = SessionId . UUID.toText <$> UUID.nextRandom
+
+-- | Generate a fresh random MessageId (UUIDv4 in hyphenated form).
+newMessageId :: IO MessageId
+newMessageId = MessageId . UUID.toText <$> UUID.nextRandom
 
 -- ---------------------------------------------------------------------------
 -- JSON helpers (used by later tasks)
