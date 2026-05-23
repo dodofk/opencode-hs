@@ -107,6 +107,13 @@ executables:
     dependencies:
       - opencode-hs
 
+  m2-verify-schema:
+    main:         VerifySchema.hs
+    source-dirs:  verify
+    dependencies:
+      - opencode-hs
+      - sqlite-simple
+
 tests:
   opencode-hs-test:
     main:         Spec.hs
