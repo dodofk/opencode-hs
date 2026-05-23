@@ -11,7 +11,7 @@ Acceptance for each is one or more concrete shell commands plus expected outcome
 | M0  | Project Scaffold                       | done      | `1591f0c`, `d5c9228` |
 | M1  | Core Types + Config + AppEnv           | done      | `cd81bdb`          |
 | M2  | SQLite Persistence                     | done      | `fb9c8a9..`        |
-| M3  | CI                                     | pending   | —                  |
+| M3  | CI                                     | done      | `8215987..`        |
 | M4  | LLM Streaming — OpenAI only            | pending   | —                  |
 | M5  | Tool System: file I/O                  | pending   | —                  |
 | M6  | Session Loop                           | pending   | —                  |
