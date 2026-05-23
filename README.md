@@ -1,5 +1,7 @@
 # opencode-hs
 
+[![CI](https://github.com/dodofk/opencode-hs/actions/workflows/ci.yml/badge.svg)](https://github.com/dodofk/opencode-hs/actions/workflows/ci.yml)
+
 A Haskell reimplementation of [OpenCode](https://github.com/sst/opencode) — a terminal AI coding agent.
 
 Built for correctness and FP purity: GADTs for tools, `conduit` streaming for LLM responses, `STM` for concurrency, `brick` for TUI.
