@@ -31,6 +31,7 @@ library
       OpenCode.LLM.OpenAI
       OpenCode.LLM.Anthropic
       OpenCode.LLM.Request
+      OpenCode.LLM.Schema
       OpenCode.Tool.Types
       OpenCode.Tool.ReadFile
       OpenCode.Tool.WriteFile
@@ -187,6 +188,7 @@ test-suite opencode-hs-test
       OpenCode.DBSpec
       OpenCode.LLM.OpenAISpec
       OpenCode.LLM.RequestSpec
+      OpenCode.LLM.SchemaSpec
       OpenCode.LLMSpec
       OpenCode.SessionSpec
       OpenCode.ToolSpec

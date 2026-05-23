@@ -86,6 +86,7 @@ library:
     - OpenCode.LLM.OpenAI
     - OpenCode.LLM.Anthropic
     - OpenCode.LLM.Request
+    - OpenCode.LLM.Schema
     - OpenCode.Tool.Types
     - OpenCode.Tool.ReadFile
     - OpenCode.Tool.WriteFile
