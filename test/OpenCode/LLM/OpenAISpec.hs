@@ -2,12 +2,16 @@ module OpenCode.LLM.OpenAISpec (spec) where
 
 import Conduit qualified
 import Conduit ((.|))
+import Data.Aeson qualified as Aeson
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Test.Hspec
 
 import OpenCode.LLM.OpenAI
+import OpenCode.LLM.Schema qualified as Schema
+import OpenCode.LLM.Types (LLMRequest (..))
 import OpenCode.Types (StreamEvent (..), Usage (..))
 
 spec :: Spec
@@ -127,6 +131,41 @@ spec = do
     it "terminates cleanly on a done-only stream with no events" $ do
       events <- runStream "test/fixtures/openai/done-only.sse"
       events `shouldBe` []
+
+  describe "streamErrorFromHttp" $ do
+
+    it "produces a StreamError with status + truncated body" $
+      streamErrorFromHttp 401 "Unauthorized: bad token"
+        `shouldBe` StreamError "openai: 401: Unauthorized: bad token"
+
+    it "truncates long bodies to 200 bytes" $
+      let longBody = BS.replicate 500 65 -- "AAAA..." (500 chars, ASCII 'A')
+          ev = streamErrorFromHttp 500 longBody
+      in case ev of
+        StreamError msg -> Text.length msg `shouldSatisfy` (< 250)
+        _               -> expectationFailure "expected StreamError"
+
+    it "handles invalid UTF-8 in the body without throwing" $ do
+      -- 0xC0 0x80 is an overlong/invalid UTF-8 sequence; followed by truncation
+      -- mid-multibyte. lenient decode should replace with U+FFFD, NOT throw.
+      let invalidUtf8 = BS.pack [0xC0, 0x80, 0xE2, 0x82]  -- last 2 bytes start a 3-byte UTF-8 sequence (truncated)
+      case streamErrorFromHttp 500 invalidUtf8 of
+        StreamError _ -> pure ()
+        _             -> expectationFailure "expected StreamError"
+
+  describe "request body smoke test" $
+    it "produces parseable JSON with model + messages + stream" $ do
+      let req = LLMRequest
+            { reqModel        = "gpt-4o"
+            , reqMessages     = []
+            , reqTools        = []
+            , reqSystemPrompt = ""
+            , reqMaxTokens    = Just 100
+            }
+          body = Aeson.encode (Schema.buildOpenAIRequestBody req)
+      case Aeson.eitherDecode body :: Either String Aeson.Value of
+        Left e  -> expectationFailure ("body not parseable: " <> e)
+        Right _ -> pure ()
 
 -- ---------------------------------------------------------------------------
 -- Fixture replay helper

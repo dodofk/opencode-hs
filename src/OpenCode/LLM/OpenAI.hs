@@ -15,22 +15,36 @@ module OpenCode.LLM.OpenAI
   , ToolCallAccum
   , processChunk
   , interpretOpenAIStream
+    -- * Streaming
+  , streamOpenAI
+  , streamErrorFromHttp
   ) where
 
 import Conduit (ConduitT, MonadIO, await, yield, (.|))
+import Conduit qualified
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Resource (ResourceT)
 import Data.Aeson (FromJSON (..), withObject, (.:), (.:?))
 import Data.Aeson qualified as Aeson
 import Data.ByteString (ByteString)
+import Data.ByteString qualified as BS
 import Data.Foldable (foldl')
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as TextEnc
+import Data.Text.Encoding.Error (lenientDecode)
+import Network.HTTP.Conduit (responseTimeout, responseTimeoutNone)
+import Network.HTTP.Simple (setRequestBodyLBS, setRequestHeaders, setRequestMethod)
+import Network.HTTP.Simple qualified as HTTP
+import Network.HTTP.Types (statusCode)
 
 import OpenCode.LLM.Request qualified as Request
+import OpenCode.LLM.Schema qualified as Schema
 import OpenCode.LLM.Types (LLMProvider (..), LLMRequest)
-import OpenCode.Types (ApiKey, StreamEvent (..), Usage (..))
+import OpenCode.Types (ApiKey, StreamEvent (..), Usage (..), unApiKey)
 
 -- ---------------------------------------------------------------------------
 -- Provider record
@@ -235,13 +249,6 @@ interpretOpenAIStream =
               mapM_ yield events
               go st'
 
--- ---------------------------------------------------------------------------
--- Instance (implemented in M4)
--- ---------------------------------------------------------------------------
-
-instance LLMProvider OpenAIProvider where
-  streamCompletion _ _ = error "OpenCode.LLM.OpenAI: not yet implemented (M4)"
-
 -- | Default provider pointing at the public OpenAI endpoint.
 defaultOpenAI :: ApiKey -> OpenAIProvider
 defaultOpenAI key = OpenAIProvider
@@ -249,6 +256,48 @@ defaultOpenAI key = OpenAIProvider
   , baseUrl = "https://api.openai.com"
   }
 
--- Silence unused-import warnings for types needed in M4
-_unused :: LLMRequest -> ()
-_unused _ = ()
+-- ---------------------------------------------------------------------------
+-- HTTP integration
+-- ---------------------------------------------------------------------------
+
+-- | Build an HTTP error 'StreamEvent' from a status code + body bytes.
+-- The body is truncated to a manageable snippet so log/UI surfaces don't
+-- get flooded with massive HTML error pages.
+streamErrorFromHttp :: Int -> ByteString -> StreamEvent
+streamErrorFromHttp status body =
+  let snippet = BS.take 200 body
+  in StreamError $
+      "openai: " <> Text.pack (show status) <> ": " <> TextEnc.decodeUtf8With lenientDecode snippet
+
+-- | Stream completions from OpenAI via SSE.
+-- On HTTP 2xx, pipes the response body through 'interpretOpenAIStream'.
+-- On non-2xx, drains the body, emits a single 'StreamError', terminates.
+streamOpenAI
+  :: OpenAIProvider
+  -> LLMRequest
+  -> ConduitT () StreamEvent (ResourceT IO) ()
+streamOpenAI provider req = do
+  initReq <- liftIO $ HTTP.parseRequest (Text.unpack (baseUrl provider) <> "/v1/chat/completions")
+  let bodyBytes = Aeson.encode (Schema.buildOpenAIRequestBody req)
+      authHeader = ("Authorization", "Bearer " <> TextEnc.encodeUtf8 (unApiKey (apiKey provider)))
+      headers =
+        [ authHeader
+        , ("Content-Type", "application/json")
+        , ("Accept", "text/event-stream")
+        ]
+      httpReq = setRequestMethod "POST"
+              . setRequestHeaders headers
+              . setRequestBodyLBS bodyBytes
+              $ initReq { responseTimeout = responseTimeoutNone }
+  HTTP.httpSource httpReq dispatch
+  where
+    dispatch response =
+      let code = statusCode (HTTP.getResponseStatus response)
+      in if code >= 200 && code < 300
+           then HTTP.getResponseBody response .| interpretOpenAIStream
+           else do
+             body <- HTTP.getResponseBody response .| Conduit.foldC
+             yield (streamErrorFromHttp code body)
+
+instance LLMProvider OpenAIProvider where
+  streamCompletion = streamOpenAI
