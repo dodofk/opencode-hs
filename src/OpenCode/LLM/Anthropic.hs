@@ -3,25 +3,24 @@ module OpenCode.LLM.Anthropic
   ( AnthropicProvider (..)
   ) where
 
-import Data.Text (Text)
 import OpenCode.LLM.Types (LLMProvider (..), LLMRequest)
-import OpenCode.Types (StreamEvent)
+import OpenCode.Types (ApiKey, StreamEvent)
 
 -- ---------------------------------------------------------------------------
 -- Provider record
 -- ---------------------------------------------------------------------------
 
 newtype AnthropicProvider = AnthropicProvider
-  { apiKey :: Text
+  { apiKey :: ApiKey
   }
   deriving stock (Show, Eq)
 
 -- ---------------------------------------------------------------------------
--- Instance (implemented in M3c)
+-- Instance (implemented in M11)
 -- ---------------------------------------------------------------------------
 
 instance LLMProvider AnthropicProvider where
-  streamCompletion _ _ = error "OpenCode.LLM.Anthropic: not yet implemented (M3c)"
+  streamCompletion _ _ = error "OpenCode.LLM.Anthropic: not yet implemented (M11)"
 
 -- Silence unused-import warnings for types needed in M3c
 _unused :: (LLMRequest, StreamEvent) -> ()

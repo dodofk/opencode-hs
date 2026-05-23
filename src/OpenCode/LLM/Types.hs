@@ -6,6 +6,7 @@ module OpenCode.LLM.Types
   ) where
 
 import Conduit (ConduitT)
+import Control.Monad.Trans.Resource (ResourceT)
 import Data.Aeson (Value)
 import Data.Text (Text)
 import OpenCode.Types (Message, StreamEvent)
@@ -17,7 +18,7 @@ import OpenCode.Types (Message, StreamEvent)
 data ToolDefinition = ToolDefinition
   { tdName        :: Text
   , tdDescription :: Text
-  , tdSchema      :: Value   -- ^ JSON Schema object
+  , tdSchema      :: Value   -- ^ JSON Schema object describing the input
   }
   deriving stock (Show, Eq)
 
@@ -26,10 +27,11 @@ data ToolDefinition = ToolDefinition
 -- ---------------------------------------------------------------------------
 
 data LLMRequest = LLMRequest
-  { reqMessages     :: [Message]
+  { reqModel        :: Text         -- ^ Model identifier, e.g. "gpt-4o"
+  , reqMessages     :: [Message]    -- ^ Conversation history; system goes in reqSystemPrompt
   , reqTools        :: [ToolDefinition]
-  , reqSystemPrompt :: Text
-  , reqMaxTokens    :: Int
+  , reqSystemPrompt :: Text         -- ^ Empty string means no system prompt
+  , reqMaxTokens    :: Maybe Int    -- ^ Nothing = let the provider pick its default
   }
   deriving stock (Show, Eq)
 
@@ -41,4 +43,4 @@ class LLMProvider p where
   streamCompletion
     :: p
     -> LLMRequest
-    -> ConduitT () StreamEvent IO ()
+    -> ConduitT () StreamEvent (ResourceT IO) ()

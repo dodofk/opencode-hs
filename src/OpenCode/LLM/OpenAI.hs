@@ -5,28 +5,29 @@ module OpenCode.LLM.OpenAI
   ) where
 
 import Data.Text (Text)
+
 import OpenCode.LLM.Types (LLMProvider (..), LLMRequest)
-import OpenCode.Types (StreamEvent)
+import OpenCode.Types (ApiKey, StreamEvent)
 
 -- ---------------------------------------------------------------------------
 -- Provider record
 -- ---------------------------------------------------------------------------
 
 data OpenAIProvider = OpenAIProvider
-  { apiKey  :: Text
-  , baseUrl :: Text   -- ^ defaults to "https://api.openai.com"
+  { apiKey  :: ApiKey
+  , baseUrl :: Text         -- ^ defaults to "https://api.openai.com"
   }
   deriving stock (Show, Eq)
 
 -- ---------------------------------------------------------------------------
--- Instance (implemented in M3b)
+-- Instance (implemented in M4)
 -- ---------------------------------------------------------------------------
 
 instance LLMProvider OpenAIProvider where
-  streamCompletion _ _ = error "OpenCode.LLM.OpenAI: not yet implemented (M3b)"
+  streamCompletion _ _ = error "OpenCode.LLM.OpenAI: not yet implemented (M4)"
 
 -- | Default provider pointing at the public OpenAI endpoint.
-defaultOpenAI :: Text -> OpenAIProvider
+defaultOpenAI :: ApiKey -> OpenAIProvider
 defaultOpenAI key = OpenAIProvider
   { apiKey  = key
   , baseUrl = "https://api.openai.com"
