@@ -4,7 +4,7 @@ import Control.Exception (bracket)
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Time (UTCTime (..), fromGregorian)
+import Data.Time (Day (..), UTCTime (..), fromGregorian, secondsToDiffTime)
 import Database.SQLite.Simple
   ( Connection
   , Only (..)
@@ -12,6 +12,17 @@ import Database.SQLite.Simple
   , query_
   )
 import Test.Hspec
+import Test.Hspec.QuickCheck (prop)
+import Test.QuickCheck
+  ( Gen
+  , choose
+  , elements
+  , forAll
+  , ioProperty
+  , listOf1
+  , oneof
+  , resize
+  )
 
 import OpenCode.DB
 import OpenCode.Types
@@ -185,6 +196,16 @@ spec = do
         msgs <- getMessages conn sid
         msgs `shouldBe` []
 
+  describe "property — message round-trip" $
+    prop "any generated Message round-trips through SQLite byte-for-byte" $
+      forAll genMessage $ \m -> ioProperty $
+        bracket (openDb ":memory:") close $ \conn -> do
+          let sid = SessionId "prop-sess"
+          insertSession conn (sampleSession sid)
+          insertMessage conn sid m
+          msgs <- getMessages conn sid
+          pure (msgs == [m])
+
 -- ---------------------------------------------------------------------------
 -- Fixtures
 -- ---------------------------------------------------------------------------
@@ -199,3 +220,51 @@ sampleSession sid = Session
   , sessionModel   = ModelId Anthropic "claude-opus-4-7"
   , sessionCreated = t0
   }
+
+-- ---------------------------------------------------------------------------
+-- Generators
+-- ---------------------------------------------------------------------------
+
+genUtcTime :: Gen UTCTime
+genUtcTime = do
+  day  <- ModifiedJulianDay <$> choose (40000, 70000)
+  secs <- secondsToDiffTime <$> choose (0, 86399)
+  pure (UTCTime day secs)
+
+genText :: Gen Text
+genText = Text.pack
+  <$> listOf1 (elements (['a'..'z'] ++ ['0'..'9'] ++ " \n.,_-"))
+
+genShortText :: Gen Text
+genShortText = Text.pack
+  <$> resize 12 (listOf1 (elements (['a'..'z'] ++ ['0'..'9'])))
+
+genRole :: Gen Role
+genRole = elements [RoleUser, RoleAssistant, RoleTool]
+
+genToolCall :: Gen ToolCall
+genToolCall = ToolCall
+  <$> genShortText
+  <*> genShortText
+  <*> (ToolArgs <$> genText)
+
+genToolResult :: Gen ToolResult
+genToolResult = ToolResult
+  <$> genShortText
+  <*> genText
+  <*> elements [True, False]
+
+genMessagePart :: Gen MessagePart
+genMessagePart = oneof
+  [ TextPart        <$> genText
+  , ToolCallPart    <$> genToolCall
+  , ToolResultPart  <$> genToolResult
+  , ErrorPart       <$> genText
+  ]
+
+genMessage :: Gen Message
+genMessage = Message
+  <$> (MessageId <$> genShortText)
+  <*> genRole
+  <*> (NE.fromList <$> resize 4 (listOf1 genMessagePart))
+  <*> genUtcTime
