@@ -283,8 +283,8 @@ genMessagePart = oneof
   ]
 
 genMessage :: Gen Message
-genMessage = Message
-  <$> (MessageId <$> genShortText)
+genMessage = Message . MessageId
+  <$> genShortText
   <*> genRole
   <*> (NE.fromList <$> resize 4 (listOf1 genMessagePart))
   <*> genUtcTime

@@ -81,7 +81,7 @@ instance ToJSON ProviderId where
   toJSON Anthropic = String "anthropic"
 
 instance FromJSON ProviderId where
-  parseJSON = withText "ProviderId" $ \t -> case t of
+  parseJSON = withText "ProviderId" $ \case
     "openai"    -> pure OpenAI
     "anthropic" -> pure Anthropic
     other       -> fail $ "Unknown provider id: " <> Text.unpack other

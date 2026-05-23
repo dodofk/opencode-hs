@@ -11,7 +11,7 @@ import OpenCode.Types (StreamEvent)
 -- Provider record
 -- ---------------------------------------------------------------------------
 
-data AnthropicProvider = AnthropicProvider
+newtype AnthropicProvider = AnthropicProvider
   { apiKey :: Text
   }
   deriving stock (Show, Eq)

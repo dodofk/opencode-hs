@@ -16,7 +16,7 @@ module OpenCode.DB
   , newMessageId
   ) where
 
-import Control.Monad (forM_, when)
+import Control.Monad (forM_, unless, when)
 import qualified Data.Aeson as Aeson
 import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.ByteString.Lazy as BSL
@@ -83,7 +83,7 @@ createSchema conn = withTransaction conn $ do
   applied <- map fromOnly <$> query_ conn
     "SELECT version FROM migrations" :: IO [Int]
   forM_ allMigrations $ \(v, stmts) ->
-    when (v `notElem` applied) $ do
+    unless (v `elem` applied) $ do
       mapM_ (execute_ conn) stmts
       execute conn
         "INSERT INTO migrations (version, applied_at) \
