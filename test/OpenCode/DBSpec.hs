@@ -1,7 +1,9 @@
 module OpenCode.DBSpec (spec) where
 
 import Control.Exception (bracket)
+import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Data.Time (UTCTime (..), fromGregorian)
 import Database.SQLite.Simple
   ( Connection
@@ -13,10 +15,17 @@ import Test.Hspec
 
 import OpenCode.DB
 import OpenCode.Types
-  ( ModelId (..)
+  ( Message (..)
+  , MessageId (..)
+  , MessagePart (..)
+  , ModelId (..)
   , ProviderId (..)
+  , Role (..)
   , Session (..)
   , SessionId (..)
+  , ToolArgs (..)
+  , ToolCall (..)
+  , ToolResult (..)
   )
 
 -- | Helper: open an in-memory DB with schema applied; close on exit.
@@ -112,6 +121,69 @@ spec = do
         insertSession conn s2
         xs <- listSessions conn
         map sessionId xs `shouldBe` [SessionId "new", SessionId "old"]
+
+  describe "insertMessage / getMessages" $ do
+
+    it "round-trips a single text message" $
+      withInMemoryDb $ \conn -> do
+        let sid = SessionId "s-msg-1"
+        insertSession conn (sampleSession sid)
+        let m = Message
+              { msgId      = MessageId "m-1"
+              , msgRole    = RoleUser
+              , msgParts   = NE.fromList [TextPart "hello"]
+              , msgCreated = t0
+              }
+        insertMessage conn sid m
+        msgs <- getMessages conn sid
+        msgs `shouldBe` [m]
+
+    it "round-trips a message containing every MessagePart constructor" $
+      withInMemoryDb $ \conn -> do
+        let sid = SessionId "s-msg-2"
+        insertSession conn (sampleSession sid)
+        let m = Message
+              { msgId      = MessageId "m-multi"
+              , msgRole    = RoleAssistant
+              , msgParts   = NE.fromList
+                  [ TextPart "thinking\8230"
+                  , ToolCallPart (ToolCall "c1" "bash" (ToolArgs "{\"cmd\":\"ls\"}"))
+                  , ToolResultPart (ToolResult "c1" "file.txt\n" False)
+                  , ErrorPart "boom"
+                  ]
+              , msgCreated = t0
+              }
+        insertMessage conn sid m
+        msgs <- getMessages conn sid
+        msgs `shouldBe` [m]
+
+    it "preserves insertion order by created_at ASC" $
+      withInMemoryDb $ \conn -> do
+        let sid = SessionId "s-order"
+        insertSession conn (sampleSession sid)
+        let mk i secs = Message
+              { msgId      = MessageId (Text.pack ("m-" <> show i))
+              , msgRole    = RoleUser
+              , msgParts   = NE.fromList [TextPart (Text.pack (show i))]
+              , msgCreated = UTCTime (fromGregorian 2026 5 23)
+                  (fromInteger secs)
+              }
+            m1 = mk (1 :: Int) 0
+            m2 = mk (2 :: Int) 60
+            m3 = mk (3 :: Int) 120
+        -- Insert out of order; getMessages should reorder by created_at.
+        insertMessage conn sid m3
+        insertMessage conn sid m1
+        insertMessage conn sid m2
+        msgs <- getMessages conn sid
+        map msgId msgs `shouldBe` [msgId m1, msgId m2, msgId m3]
+
+    it "returns an empty list for a session with no messages" $
+      withInMemoryDb $ \conn -> do
+        let sid = SessionId "s-empty"
+        insertSession conn (sampleSession sid)
+        msgs <- getMessages conn sid
+        msgs `shouldBe` []
 
 -- ---------------------------------------------------------------------------
 -- Fixtures

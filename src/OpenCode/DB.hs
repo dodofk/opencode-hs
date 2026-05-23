@@ -1,5 +1,4 @@
 -- | SQLite persistence layer for sessions and messages.
-{-# OPTIONS_GHC -Wno-unused-imports #-}
 module OpenCode.DB
   ( -- * Connection
     openDb
@@ -21,13 +20,10 @@ import Control.Monad (forM_, when)
 import qualified Data.Aeson as Aeson
 import Data.Aeson (FromJSON, ToJSON)
 import qualified Data.ByteString.Lazy as BSL
-import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import qualified Data.UUID as UUID
-import qualified Data.UUID.V4 as UUID
 import Data.Time (UTCTime)
 import Database.SQLite.Simple
   ( Connection
@@ -40,18 +36,13 @@ import Database.SQLite.Simple
   , query_
   , withTransaction
   )
-import System.Directory
-  ( XdgDirectory (XdgData)
-  , createDirectoryIfMissing
-  , getXdgDirectory
-  )
-import System.FilePath (takeDirectory, (</>))
+import System.Directory (createDirectoryIfMissing)
+import System.FilePath (takeDirectory)
 
 import OpenCode.Types
   ( Message (..)
   , MessageId (..)
   , MessagePart
-  , ModelId
   , Role (..)
   , Session (..)
   , SessionId (..)
@@ -161,11 +152,40 @@ listSessions conn = do
       Right m  -> Session (SessionId sid) title m ts
       Left err -> error ("OpenCode.DB.listSessions: model_id decode failed: " <> err)
 
+-- | Insert a message belonging to the given session. Caller supplies the id;
+-- use 'newMessageId' to mint one.
 insertMessage :: Connection -> SessionId -> Message -> IO ()
-insertMessage _ _ _ = error "OpenCode.DB.insertMessage: not yet implemented"
+insertMessage conn (SessionId sid) m = execute conn
+  "INSERT INTO messages (id, session_id, role, parts, created_at) \
+  \VALUES (?, ?, ?, ?, ?)"
+  ( unMessageId (msgId m)
+  , sid
+  , roleToText (msgRole m)
+  , encodeJsonText (NE.toList (msgParts m))
+  , msgCreated m
+  )
 
+-- | All messages for a session, oldest first (tiebreak by id).
 getMessages :: Connection -> SessionId -> IO [Message]
-getMessages _ _ = error "OpenCode.DB.getMessages: not yet implemented"
+getMessages conn (SessionId sid) = do
+  rows <- query conn
+    "SELECT id, role, parts, created_at \
+    \FROM messages WHERE session_id = ? \
+    \ORDER BY created_at ASC, id ASC"
+    (Only sid)
+    :: IO [(Text, Text, Text, UTCTime)]
+  pure (map toMessage rows)
+  where
+    toMessage (mid, roleTx, partsTx, ts) =
+      let role  = case textToRole roleTx of
+            Right r  -> r
+            Left err -> error ("OpenCode.DB.getMessages: role decode: " <> err)
+          parts = case decodeJsonText partsTx :: Either String [MessagePart] of
+            Right ps -> case NE.nonEmpty ps of
+              Just ne -> ne
+              Nothing -> error "OpenCode.DB.getMessages: empty parts list"
+            Left err -> error ("OpenCode.DB.getMessages: parts decode: " <> err)
+      in Message (MessageId mid) role parts ts
 
 newSessionId :: IO SessionId
 newSessionId = error "OpenCode.DB.newSessionId: not yet implemented"
