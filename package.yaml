@@ -84,6 +84,7 @@ library:
     - OpenCode.DB
     - OpenCode.Session
     - OpenCode.Session.Events
+    - OpenCode.Session.Prompt
     - OpenCode.MCP
     - OpenCode.LLM.Anthropic
     - OpenCode.LLM.Mock
