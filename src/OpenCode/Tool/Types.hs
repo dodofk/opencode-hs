@@ -124,7 +124,7 @@ instance ToJSON   GlobInput where toJSON    = Aeson.genericToJSON    inputOption
 data GrepInput = GrepInput
   { griPattern   :: Text
   , griPath      :: Maybe FilePath
-  , griRecursive :: Bool
+  , griRecursive :: Maybe Bool
   }
   deriving stock (Show, Eq, Generic)
 

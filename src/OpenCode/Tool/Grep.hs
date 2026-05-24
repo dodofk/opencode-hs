@@ -82,8 +82,9 @@ maxMatches :: Int
 maxMatches = 500
 
 grepExec :: GrepInput -> AppM [GrepMatch]
-grepExec GrepInput { griPattern = pat, griPath = mPath, griRecursive = recursive } = do
-  let path = fromMaybe "." mPath
+grepExec GrepInput { griPattern = pat, griPath = mPath, griRecursive = mRecursive } = do
+  let path      = fromMaybe "." mPath
+      recursive = fromMaybe False mRecursive   -- default: non-recursive
   attempt <- liftIO $ try $ do
     rgAvailable <- isJust <$> Dir.findExecutable "rg"
     if rgAvailable

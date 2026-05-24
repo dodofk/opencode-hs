@@ -15,6 +15,11 @@ import Test.Hspec
 import OpenCode.App (AppEnv (..), AppError)
 import OpenCode.Tool.Grep
 import OpenCode.Tool.Types
+  ( GrepInput (..)
+  , emptyRegistry
+  , executeTool
+  , registerTool
+  )
 
 spec :: Spec
 spec = describe "grepTool" $ do
@@ -23,7 +28,7 @@ spec = describe "grepTool" $ do
     withSystemTempDirectory "grep" $ \dir -> do
       let path = dir </> "fixture.txt"
       writeFile path "line one\nline two\nline three with needle\nline four\n"
-      result <- runGrep (GrepInput "needle" (Just path) False)
+      result <- runGrep (GrepInput "needle" (Just path) (Just False))
       case result of
         Right t -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 t) of
           Right (matches :: [Aeson.Value]) -> do
@@ -42,7 +47,7 @@ spec = describe "grepTool" $ do
     withSystemTempDirectory "grep" $ \dir -> do
       let path = dir </> "no-match.txt"
       writeFile path "alpha\nbeta\ngamma\n"
-      result <- runGrep (GrepInput "missing" (Just path) False)
+      result <- runGrep (GrepInput "missing" (Just path) (Just False))
       case result of
         Right t -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 t) of
           Right ([] :: [Aeson.Value]) -> pure ()
@@ -53,12 +58,37 @@ spec = describe "grepTool" $ do
     withSystemTempDirectory "grep" $ \dir -> do
       writeFile (dir </> "a.txt") "needle here\n"
       writeFile (dir </> "b.txt") "no match here\n"
-      result <- runGrep (GrepInput "needle" (Just dir) True)
+      result <- runGrep (GrepInput "needle" (Just dir) (Just True))
       case result of
         Right t -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 t) of
           Right (matches :: [Aeson.Value]) ->
             length matches `shouldSatisfy` (>= 1)
           Left e -> expectationFailure ("decode failed: " <> e)
+        Left err -> expectationFailure (show err)
+
+  it "decodes JSON without the recursive field (defaults to non-recursive)" $
+    withSystemTempDirectory "grep" $ \dir -> do
+      let path = dir </> "single.txt"
+      writeFile path "needle here\n"
+      -- Build the JSON args WITHOUT a "recursive" field. The schema marks it
+      -- optional, so the LLM may omit it.
+      let args = Aeson.object
+            [ "pattern" Aeson..= ("needle" :: Text)
+            , "path"    Aeson..= path
+            ]
+          reg = registerTool grepTool emptyRegistry
+          env = AppEnv
+            { envConfig    = undefined
+            , envDb        = undefined
+            , envRegistry  = undefined
+            , envEventChan = undefined
+            , envAbort     = undefined
+            }
+      result <- runExceptT $ runReaderT (executeTool reg "grep" args) env
+      case result of
+        Right t -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 t) of
+          Right (matches :: [Aeson.Value]) -> length matches `shouldBe` 1
+          Left e  -> expectationFailure ("decode failed: " <> e)
         Left err -> expectationFailure (show err)
 
 -- ---------------------------------------------------------------------------
