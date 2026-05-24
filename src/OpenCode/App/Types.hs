@@ -6,19 +6,23 @@ module OpenCode.App.Types
   , AppEnv (..)
   ) where
 
+import Brick.BChan (BChan)
+import Control.Concurrent.STM (TVar)
 import Control.Monad.Except (ExceptT)
 import Control.Monad.Reader (ReaderT)
 import Database.SQLite.Simple (Connection)
 
 import OpenCode.App.Error (AppError)
 import OpenCode.Config (Config)
+import OpenCode.Session.Events (SessionEvent)
 import OpenCode.Tool.Types (ToolRegistry)
 
 type AppM = ReaderT AppEnv (ExceptT AppError IO)
 
 data AppEnv = AppEnv
-  { envConfig   :: Config
-  , envDb       :: Connection
-  , envRegistry :: ToolRegistry
-  -- envEventChan, envAbort: added in M6
+  { envConfig    :: Config
+  , envDb        :: Connection
+  , envRegistry  :: ToolRegistry
+  , envEventChan :: BChan SessionEvent
+  , envAbort     :: TVar Bool
   }

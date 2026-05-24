@@ -146,7 +146,7 @@ Outcome: all ADTs from SPEC §3.2 in `OpenCode.Types`; YAML config loader with e
   - GADT `data ToolDef i o where ReadFileTool :: ToolDef ReadFileInput Text; WriteFileTool :: ToolDef WriteFileInput Text; EditFileTool :: ToolDef EditFileInput Text` (Bash/Glob/Grep constructors added in M7).
   - `data SomeTool = forall i o. (FromJSON i, ToJSON o) => SomeTool { stDef :: ToolDef i o, stRun :: i -> AppM o }`.
   - `newtype ToolRegistry = ToolRegistry { unRegistry :: Map Text SomeTool }`.
-  - `registerTool :: Text -> SomeTool -> ToolRegistry -> ToolRegistry`.
+  - `registerTool :: SomeTool -> ToolRegistry -> ToolRegistry` (name extracted from `toolName` field of `SomeTool`).
   - `executeTool :: ToolRegistry -> Text -> Aeson.Value -> AppM Text` — looks up by name, decodes arguments, runs the handler, encodes the output as JSON text; raises `ToolError name msg` on unknown tool or decode failure.
   - `toolDefinition :: Text -> SomeTool -> ToolDefinition` — derives the `ToolDefinition` (name, description, input JSON Schema) for the LLM.
 - `OpenCode.Tool.ReadFile`:

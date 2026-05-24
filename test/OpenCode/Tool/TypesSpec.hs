@@ -67,7 +67,13 @@ spec = do
 -- envDb are undefined because the executeTool path here doesn't touch them.
 runTool :: ToolRegistry -> Text -> Value -> IO (Either AppError Text)
 runTool reg name args = do
-  let env = AppEnv { envConfig = undefined, envDb = undefined, envRegistry = undefined }
+  let env = AppEnv
+        { envConfig    = undefined
+        , envDb        = undefined
+        , envRegistry  = undefined
+        , envEventChan = undefined
+        , envAbort     = undefined
+        }
   runExceptT (runReaderT (executeTool reg name args) env)
 
 -- | A WriteFileInput-shaped echo tool that returns wfiContent verbatim,

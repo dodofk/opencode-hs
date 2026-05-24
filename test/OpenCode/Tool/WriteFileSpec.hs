@@ -54,6 +54,12 @@ spec = describe "writeFileTool" $ do
 runWrite :: WriteFileInput -> IO (Either AppError Text)
 runWrite input = do
   let reg = registerTool writeFileTool emptyRegistry
-      env = AppEnv { envConfig = undefined, envDb = undefined, envRegistry = undefined }
+      env = AppEnv
+        { envConfig    = undefined
+        , envDb        = undefined
+        , envRegistry  = undefined
+        , envEventChan = undefined
+        , envAbort     = undefined
+        }
       args = Aeson.toJSON input
   runExceptT (runReaderT (executeTool reg "write_file" args) env)

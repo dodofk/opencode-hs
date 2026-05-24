@@ -64,6 +64,12 @@ spec = describe "editFileTool" $ do
 runEdit :: EditFileInput -> IO (Either AppError Text)
 runEdit input = do
   let reg = registerTool editFileTool emptyRegistry
-      env = AppEnv { envConfig = undefined, envDb = undefined, envRegistry = undefined }
+      env = AppEnv
+        { envConfig    = undefined
+        , envDb        = undefined
+        , envRegistry  = undefined
+        , envEventChan = undefined
+        , envAbort     = undefined
+        }
       args = Aeson.toJSON input
   runExceptT (runReaderT (executeTool reg "edit_file" args) env)

@@ -22,13 +22,25 @@ spec = describe "defaultBuiltinRegistry" $ do
       `shouldMatchList` ["read_file", "write_file", "edit_file"]
 
   it "is accessible from AppEnv via envRegistry" $
-    let env = AppEnv { envConfig = undefined, envDb = undefined, envRegistry = defaultBuiltinRegistry }
+    let env = AppEnv
+          { envConfig    = undefined
+          , envDb        = undefined
+          , envRegistry  = defaultBuiltinRegistry
+          , envEventChan = undefined
+          , envAbort     = undefined
+          }
     in Map.size (unRegistry (envRegistry env)) `shouldBe` 3
 
   it "round-trips write_file then read_file through executeTool" $
     withSystemTempDirectory "reg" $ \dir -> do
       let path = dir </> "rt.txt"
-          env  = AppEnv { envConfig = undefined, envDb = undefined, envRegistry = defaultBuiltinRegistry }
+          env  = AppEnv
+            { envConfig    = undefined
+            , envDb        = undefined
+            , envRegistry  = defaultBuiltinRegistry
+            , envEventChan = undefined
+            , envAbort     = undefined
+            }
       written <- runExceptT $ runReaderT
         (executeTool defaultBuiltinRegistry "write_file"
           (Aeson.object ["path" Aeson..= path, "content" Aeson..= ("hi" :: Text)]))
