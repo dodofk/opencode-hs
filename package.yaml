@@ -114,11 +114,21 @@ executables:
       - opencode-hs
 
   m2-verify-schema:
-    main:         VerifySchema.hs
-    source-dirs:  verify
+    main:          VerifySchema.hs
+    source-dirs:   verify
+    other-modules: []
     dependencies:
       - opencode-hs
       - sqlite-simple
+
+  m5-acceptance:
+    main:          M5Acceptance.hs
+    source-dirs:   verify
+    other-modules: []
+    dependencies:
+      - opencode-hs
+      - aeson
+      - text
 
 tests:
   opencode-hs-test:
