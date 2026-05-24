@@ -13,7 +13,7 @@ import OpenCode.App (AppEnv (..))
 import OpenCode.Config (Config (..), ProviderConfig (..))
 import qualified OpenCode.DB as DB
 import OpenCode.DB (openDb)
-import OpenCode.LLM.Mock (staticStreamer)
+import OpenCode.LLM.Mock (staticStreamer, newScriptedStreamer)
 import OpenCode.Session (agentic, createSession, loadSession)
 import OpenCode.TestEnv (withTestEnv)
 import OpenCode.Tool.Registry (defaultBuiltinRegistry)
@@ -90,6 +90,43 @@ spec = do
         stored <- DB.getMessages (envDb env) (sessionId session)
         length stored `shouldBe` 1
         msgRole (head stored) `shouldBe` RoleAssistant
+
+  describe "agentic (with tool execution, multi-round)" $ do
+
+    it "executes a tool call and recurses for the next round" $
+      withTestEnv $ \env session -> do
+        let toolArgs = "{\"path\":\"/tmp/m6-test.txt\",\"content\":\"hi\"}"
+            round1 =
+              [ ToolCallStart "c1" "write_file"
+              , ToolCallArgDelta "c1" toolArgs
+              , ToolCallEnd "c1"
+              , StreamDone (Usage 50 15 Nothing Nothing)
+              ]
+            round2 =
+              [ TextDelta "Done."
+              , StreamDone (Usage 5 2 Nothing Nothing)
+              ]
+        streamer <- newScriptedStreamer [round1, round2]
+        result <- runExceptT $ runReaderT
+          (agentic streamer (sessionId session) []) env
+        case result of
+          Right msgs -> do
+            length msgs `shouldBe` 2   -- assistant msg 1 (tool call + result) + assistant msg 2 (text)
+            let m1 = head msgs
+            msgRole m1 `shouldBe` RoleAssistant
+            any isToolCall   (NE.toList (msgParts m1)) `shouldBe` True
+            any isToolResult (NE.toList (msgParts m1)) `shouldBe` True
+            let m2 = msgs !! 1
+            msgRole m2 `shouldBe` RoleAssistant
+            NE.toList (msgParts m2) `shouldBe` [TextPart "Done."]
+          Left err -> expectationFailure (show err)
+        contents <- readFile "/tmp/m6-test.txt"
+        contents `shouldBe` "hi"
+  where
+    isToolCall (ToolCallPart _)     = True
+    isToolCall _                    = False
+    isToolResult (ToolResultPart _) = True
+    isToolResult _                  = False
 
 -- ---------------------------------------------------------------------------
 -- Helper: env with an empty in-memory DB (no starter session)
