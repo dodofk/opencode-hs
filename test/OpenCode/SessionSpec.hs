@@ -14,7 +14,7 @@ import OpenCode.Config (Config (..), ProviderConfig (..))
 import qualified OpenCode.DB as DB
 import OpenCode.DB (openDb)
 import OpenCode.LLM.Mock (staticStreamer, newScriptedStreamer)
-import OpenCode.Session (agentic, createSession, loadSession)
+import OpenCode.Session (agentic, createSession, loadSession, abortSession)
 import OpenCode.TestEnv (withTestEnv)
 import OpenCode.Tool.Registry (defaultBuiltinRegistry)
 import OpenCode.Types
@@ -122,6 +122,42 @@ spec = do
           Left err -> expectationFailure (show err)
         contents <- readFile "/tmp/m6-test.txt"
         contents `shouldBe` "hi"
+
+  describe "agentic (abort)" $ do
+
+    it "stops after the current round when envAbort is set" $
+      withTestEnv $ \env session -> do
+        -- Set the abort flag BEFORE invoking agentic.
+        STM.atomically $ STM.writeTVar (envAbort env) True
+        -- Script two rounds: round 1 has a tool call (would normally trigger
+        -- recursion); round 2 has text. With abort set, round 2 must not run.
+        let round1 =
+              [ ToolCallStart "c1" "write_file"
+              , ToolCallArgDelta "c1" "{\"path\":\"/tmp/m6-abort.txt\",\"content\":\"a\"}"
+              , ToolCallEnd "c1"
+              , StreamDone (Usage 10 5 Nothing Nothing)
+              ]
+            round2 =
+              [ TextDelta "should not appear"
+              , StreamDone (Usage 1 1 Nothing Nothing)
+              ]
+        streamer <- newScriptedStreamer [round1, round2]
+        result <- runExceptT $ runReaderT
+          (agentic streamer (sessionId session) []) env
+        case result of
+          Right msgs ->
+            -- Only round 1's assistant message should be present.
+            length msgs `shouldBe` 1
+          Left err -> expectationFailure (show err)
+
+    it "abortSession sets the envAbort flag" $
+      withTestEnv $ \env _session -> do
+        before <- STM.readTVarIO (envAbort env)
+        before `shouldBe` False
+        _ <- runExceptT $ runReaderT abortSession env
+        after <- STM.readTVarIO (envAbort env)
+        after `shouldBe` True
+
   where
     isToolCall (ToolCallPart _)     = True
     isToolCall _                    = False

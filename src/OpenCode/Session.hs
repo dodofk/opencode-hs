@@ -11,9 +11,10 @@ module OpenCode.Session
     -- * Loop
   , agentic
   , maxToolRounds
+    -- * Abort
+  , abortSession
     -- * Stubs (filled in by later M6 tasks)
   , processUserMessage
-  , abortSession
   ) where
 
 import qualified Brick.BChan as BChan
@@ -22,6 +23,7 @@ import qualified Conduit
 import Control.Monad.Except (catchError)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ask, asks)
+import qualified Control.Concurrent.STM as STM
 import qualified Data.Aeson as Aeson
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
@@ -128,7 +130,11 @@ agentic streamer sid history = go 0 history []
               let nextHistory  = soFar ++ [m]
                   nextAppended = m : appended
               if ranTool
-                then go (round + 1) nextHistory nextAppended
+                then do
+                  shouldAbort <- liftIO $ STM.readTVarIO (envAbort env)
+                  if shouldAbort
+                    then pure (reverse nextAppended)
+                    else go (round + 1) nextHistory nextAppended
                 else pure (reverse nextAppended)
 
 buildRequest :: AppEnv -> [Message] -> LLMRequest
@@ -236,5 +242,13 @@ collectText events =
 processUserMessage :: SessionId -> Text -> AppM ()
 processUserMessage _ _ = error "OpenCode.Session.processUserMessage: not yet implemented (M6 Task 8)"
 
+-- ---------------------------------------------------------------------------
+-- Abort
+-- ---------------------------------------------------------------------------
+
+-- | Set the abort flag. The session loop checks this between rounds and
+-- terminates early if set.
 abortSession :: AppM ()
-abortSession = error "OpenCode.Session.abortSession: not yet implemented (M6 Task 7)"
+abortSession = do
+  var <- asks envAbort
+  liftIO $ STM.atomically $ STM.writeTVar var True
