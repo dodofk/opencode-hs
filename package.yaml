@@ -83,6 +83,7 @@ library:
     - OpenCode.Types
     - OpenCode.DB
     - OpenCode.Session
+    - OpenCode.Session.Events
     - OpenCode.MCP
     - OpenCode.LLM.Anthropic
     - OpenCode.LLM.Mock

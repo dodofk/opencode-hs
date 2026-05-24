@@ -28,6 +28,7 @@ library
       OpenCode.Types
       OpenCode.DB
       OpenCode.Session
+      OpenCode.Session.Events
       OpenCode.MCP
       OpenCode.LLM.Anthropic
       OpenCode.LLM.Mock
@@ -237,6 +238,7 @@ test-suite opencode-hs-test
       OpenCode.LLM.OpenAISpec
       OpenCode.LLM.RequestSpec
       OpenCode.LLM.SchemaSpec
+      OpenCode.Session.EventsSpec
       OpenCode.SessionSpec
       OpenCode.Tool.EditFileSpec
       OpenCode.Tool.ReadFileSpec
