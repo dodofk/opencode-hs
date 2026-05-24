@@ -291,6 +291,7 @@ test-suite opencode-hs-test
       OpenCode.Tool.BashSpec
       OpenCode.Tool.EditFileSpec
       OpenCode.Tool.GlobSpec
+      OpenCode.Tool.GrepSpec
       OpenCode.Tool.ReadFileSpec
       OpenCode.Tool.RegistrySpec
       OpenCode.Tool.TypesSpec
