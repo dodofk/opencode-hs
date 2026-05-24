@@ -14,7 +14,7 @@ import OpenCode.Config (Config (..), ProviderConfig (..))
 import qualified OpenCode.DB as DB
 import OpenCode.DB (openDb)
 import OpenCode.LLM.Mock (staticStreamer, newScriptedStreamer)
-import OpenCode.Session (agentic, createSession, loadSession, abortSession)
+import OpenCode.Session (agentic, createSession, loadSession, abortSession, processUserMessage, processUserMessageWith)
 import OpenCode.TestEnv (withTestEnv)
 import OpenCode.Tool.Registry (defaultBuiltinRegistry)
 import OpenCode.Types
@@ -157,6 +157,22 @@ spec = do
         _ <- runExceptT $ runReaderT abortSession env
         after <- STM.readTVarIO (envAbort env)
         after `shouldBe` True
+
+  describe "processUserMessage" $ do
+
+    it "persists the user message and drives one agentic round (via Mock)" $
+      withTestEnv $ \env session -> do
+        let scripted = [TextDelta "Hello, you!", StreamDone (Usage 3 4 Nothing Nothing)]
+            streamer = staticStreamer scripted
+        result <- runExceptT $ runReaderT
+          (processUserMessageWith streamer (sessionId session) "hi there") env
+        case result of
+          Right () -> pure ()
+          Left err -> expectationFailure (show err)
+        msgs <- DB.getMessages (envDb env) (sessionId session)
+        length msgs `shouldBe` 2     -- user + assistant
+        msgRole (head msgs)         `shouldBe` RoleUser
+        msgRole (msgs !! 1)         `shouldBe` RoleAssistant
 
   where
     isToolCall (ToolCallPart _)     = True

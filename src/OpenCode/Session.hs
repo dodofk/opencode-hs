@@ -13,16 +13,19 @@ module OpenCode.Session
   , maxToolRounds
     -- * Abort
   , abortSession
-    -- * Stubs (filled in by later M6 tasks)
+    -- * Top-level entry points
   , processUserMessage
+  , processUserMessageWith
   ) where
 
 import qualified Brick.BChan as BChan
 import Conduit ((.|))
 import qualified Conduit
-import Control.Monad.Except (catchError)
+import Control.Monad.Except (catchError, throwError)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ask, asks)
+import qualified OpenCode.Config as Config
+import qualified OpenCode.LLM.OpenAI as OpenAI
 import qualified Control.Concurrent.STM as STM
 import qualified Data.Aeson as Aeson
 import qualified Data.List.NonEmpty as NE
@@ -236,11 +239,42 @@ collectText events =
   where chunks = [t | TextDelta t <- events]
 
 -- ---------------------------------------------------------------------------
--- Stubs (filled in by later M6 tasks)
+-- Top-level entry points
 -- ---------------------------------------------------------------------------
 
+-- | Process a user prompt: persist a user 'Message', run one agentic loop,
+-- and return. Production uses OpenAI streaming (hardcoded for M6; M11 will
+-- dispatch by provider).
 processUserMessage :: SessionId -> Text -> AppM ()
-processUserMessage _ _ = error "OpenCode.Session.processUserMessage: not yet implemented (M6 Task 8)"
+processUserMessage sid prompt = do
+  cfg <- asks envConfig
+  case Config.openaiKey (Config.providers cfg) of
+    Nothing  -> throwError (LLMError "no OpenAI API key configured")
+    Just key -> do
+      let provider = OpenAI.defaultOpenAI key
+          streamer  = OpenAI.streamOpenAI provider
+      processUserMessageWith streamer sid prompt
+
+-- | Streamer-parameterized variant of 'processUserMessage'. Exposed for
+-- tests that inject a mock 'Streamer'. Production callers use the
+-- 'processUserMessage' wrapper above.
+processUserMessageWith :: Streamer -> SessionId -> Text -> AppM ()
+processUserMessageWith streamer sid prompt = do
+  -- 1. Build and persist the user message.
+  conn <- asks envDb
+  mid  <- liftIO DB.newMessageId
+  now  <- liftIO getCurrentTime
+  let userMsg = Message
+        { msgId      = mid
+        , msgRole    = RoleUser
+        , msgParts   = NE.singleton (TextPart prompt)
+        , msgCreated = now
+        }
+  liftIO (DB.insertMessage conn sid userMsg)
+  -- 2. Load the full message history (user + any prior turns) and drive the loop.
+  history <- liftIO (DB.getMessages conn sid)
+  _       <- agentic streamer sid history
+  pure ()
 
 -- ---------------------------------------------------------------------------
 -- Abort
