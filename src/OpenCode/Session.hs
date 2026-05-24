@@ -41,7 +41,7 @@ import qualified OpenCode.DB as DB
 import OpenCode.LLM.Types (LLMRequest (..), Streamer)
 import OpenCode.Session.Events (RunState (..), SessionEvent (..))
 import OpenCode.Session.Prompt (systemPrompt)
-import OpenCode.Tool.Types (SomeTool (..), ToolRegistry (..), someToolDefinition)
+import OpenCode.Tool.Types (ToolRegistry (..), someToolDefinition)
 import OpenCode.Types
   ( Message (..)
   , MessagePart (..)
@@ -54,7 +54,6 @@ import OpenCode.Types
   , ToolCall (..)
   , ToolResult (..)
   )
-import qualified OpenCode.Types
 
 -- ---------------------------------------------------------------------------
 -- Session management
@@ -111,8 +110,8 @@ agentic :: Streamer -> SessionId -> [Message] -> AppM [Message]
 agentic streamer sid history = go 0 history []
   where
     go :: Int -> [Message] -> [Message] -> AppM [Message]
-    go round soFar appended
-      | round >= maxToolRounds = pure (reverse appended)
+    go roundNum soFar appended
+      | roundNum >= maxToolRounds = pure (reverse appended)
       | otherwise = do
           env <- ask
           emitEvent (RunStateChanged RunningLLM)
@@ -137,7 +136,7 @@ agentic streamer sid history = go 0 history []
                   shouldAbort <- liftIO $ STM.readTVarIO (envAbort env)
                   if shouldAbort
                     then pure (reverse nextAppended)
-                    else go (round + 1) nextHistory nextAppended
+                    else go (roundNum + 1) nextHistory nextAppended
                 else pure (reverse nextAppended)
 
 buildRequest :: AppEnv -> [Message] -> LLMRequest
@@ -181,9 +180,9 @@ buildAssistantMessage events = do
 executeOne :: PendingToolCall -> AppM (MessagePart, MessagePart)
 executeOne (PendingToolCall pid pname pargs) = do
   let callPart = ToolCallPart (ToolCall
-        { OpenCode.Types.callId    = pid
-        , OpenCode.Types.toolName  = pname
-        , OpenCode.Types.arguments = ToolArgs pargs
+        { callId    = pid
+        , toolName  = pname
+        , arguments = ToolArgs pargs
         })
       argsValue = case Aeson.eitherDecodeStrict (Text.encodeUtf8 pargs) of
         Right v -> v
