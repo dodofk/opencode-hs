@@ -14,7 +14,7 @@ Acceptance for each is one or more concrete shell commands plus expected outcome
 | M3  | CI                                     | done      | `8215987..`        |
 | M4  | LLM Streaming — OpenAI only            | done      | `1d0277a..`        |
 | M5  | Tool System: file I/O                  | done      | `5b9ddc9..`        |
-| M6  | Session Loop                           | pending   | —                  |
+| M6  | Session Loop                           | done      | `4d0d2ba..`        |
 | M7  | Tool System: execution + search        | pending   | —                  |
 | M8  | TUI: static layout                     | pending   | —                  |
 | M9  | TUI: streaming + tool inline + abort   | pending   | —                  |

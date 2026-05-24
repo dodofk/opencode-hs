@@ -182,6 +182,51 @@ executable m5-acceptance
     , yaml >=0.11
   default-language: GHC2021
 
+executable m6-acceptance
+  main-is: M6Acceptance.hs
+  hs-source-dirs:
+      verify
+  default-extensions:
+      OverloadedStrings
+      LambdaCase
+      TupleSections
+      ScopedTypeVariables
+      DerivingStrategies
+      DeriveGeneric
+      DeriveAnyClass
+      GeneralizedNewtypeDeriving
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wno-unused-top-binds
+  build-depends:
+      Diff >=0.4
+    , Glob >=0.10
+    , aeson >=2.1
+    , async >=2.2
+    , base >=4.17 && <5
+    , brick
+    , bytestring >=0.11
+    , conduit >=1.3.5
+    , conduit-extra >=1.3
+    , containers >=0.6
+    , directory >=1.3
+    , fast-logger >=3.2
+    , filepath >=1.4
+    , http-conduit >=2.3.8
+    , http-types >=0.12
+    , mtl
+    , opencode-hs
+    , optparse-applicative >=0.18
+    , process >=1.6
+    , resourcet >=1.2
+    , sqlite-simple
+    , stm
+    , text
+    , time >=1.12
+    , unordered-containers >=0.2
+    , uuid >=1.3
+    , vty >=6.1
+    , yaml >=0.11
+  default-language: GHC2021
+
 executable opencode-hs
   main-is: Main.hs
   other-modules:

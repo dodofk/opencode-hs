@@ -132,6 +132,18 @@ executables:
       - aeson
       - text
 
+  m6-acceptance:
+    main:         M6Acceptance.hs
+    source-dirs:  verify
+    other-modules: []
+    dependencies:
+      - opencode-hs
+      - brick
+      - mtl
+      - sqlite-simple
+      - stm
+      - text
+
 tests:
   opencode-hs-test:
     main:         Spec.hs
