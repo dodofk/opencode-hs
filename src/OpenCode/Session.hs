@@ -177,6 +177,8 @@ buildAssistantMessage events = do
 
 -- | Pair each completed tool call with the result of executing it.
 -- Emits 'ToolStarted'/'ToolFinished' SessionEvents around the execution.
+-- Sets 'isError = True' in the 'ToolResultPart' when 'catchError' fires so
+-- the LLM knows the tool failed and can retry or apologise.
 executeOne :: PendingToolCall -> AppM (MessagePart, MessagePart)
 executeOne (PendingToolCall pid pname pargs) = do
   let callPart = ToolCallPart (ToolCall
@@ -189,15 +191,20 @@ executeOne (PendingToolCall pid pname pargs) = do
         Left _  -> Aeson.Null   -- malformed JSON; askExecuteTool will reject it
   emitEvent (RunStateChanged (RunningTool pname))
   emitEvent (ToolStarted pname)
-  resultText <- App.askExecuteTool pname argsValue
-                  `catchError` \err -> pure $ case err of
-                    ToolError _ msg -> "tool error: " <> msg
-                    _               -> "tool error: " <> Text.pack (show err)
+  -- Track whether catchError fired so we can set ToolResult.isError correctly.
+  -- This signals to the LLM that the tool failed, prompting retry or apology.
+  outcome <- fmap Right (App.askExecuteTool pname argsValue)
+               `catchError` \err -> pure $ Left $ case err of
+                 ToolError _ msg -> "tool error: " <> msg
+                 _               -> "tool error: " <> Text.pack (show err)
+  let (resultText, isErr) = case outcome of
+        Right t   -> (t, False)
+        Left errT -> (errT, True)
   emitEvent (ToolFinished pname resultText)
   let resultPart = ToolResultPart (ToolResult
         { resultCallId = pid
         , content      = resultText
-        , isError      = False
+        , isError      = isErr
         })
   pure (callPart, resultPart)
 

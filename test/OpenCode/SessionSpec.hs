@@ -17,6 +17,7 @@ import OpenCode.LLM.Mock (staticStreamer, newScriptedStreamer)
 import OpenCode.Session (agentic, createSession, loadSession, abortSession, processUserMessage, processUserMessageWith)
 import OpenCode.TestEnv (withTestEnv)
 import OpenCode.Tool.Registry (defaultBuiltinRegistry)
+import qualified Data.Text as Text
 import OpenCode.Types
   ( ApiKey (..)
   , MessagePart (..)
@@ -26,7 +27,10 @@ import OpenCode.Types
   , Session (..)
   , SessionId (..)
   , StreamEvent (..)
+  , ToolResult (..)
   , Usage (..)
+  , content
+  , isError
   , msgParts
   , msgRole
   )
@@ -173,6 +177,30 @@ spec = do
         length msgs `shouldBe` 2     -- user + assistant
         msgRole (head msgs)         `shouldBe` RoleUser
         msgRole (msgs !! 1)         `shouldBe` RoleAssistant
+
+  describe "agentic (tool error handling)" $ do
+
+    it "sets isError = True when the tool dispatch fails" $
+      withTestEnv $ \env session -> do
+        -- Reference a tool that doesn't exist in the registry.
+        let round1 =
+              [ ToolCallStart "c1" "no_such_tool"
+              , ToolCallArgDelta "c1" "{}"
+              , ToolCallEnd "c1"
+              , StreamDone (Usage 5 1 Nothing Nothing)
+              ]
+        streamer <- newScriptedStreamer [round1]
+        result <- runExceptT $ runReaderT
+          (agentic streamer (sessionId session) []) env
+        case result of
+          Right msgs -> do
+            length msgs `shouldBe` 1
+            let m = head msgs
+                resultParts = [tr | ToolResultPart tr <- NE.toList (msgParts m)]
+            length resultParts `shouldBe` 1
+            isError (head resultParts) `shouldBe` True
+            Text.unpack (content (head resultParts)) `shouldContain` "unknown tool"
+          Left err -> expectationFailure (show err)
 
   where
     isToolCall (ToolCallPart _)     = True
