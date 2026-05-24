@@ -242,6 +242,7 @@ test-suite opencode-hs-test
       OpenCode.Session.EventsSpec
       OpenCode.Session.PromptSpec
       OpenCode.SessionSpec
+      OpenCode.TestEnv
       OpenCode.Tool.EditFileSpec
       OpenCode.Tool.ReadFileSpec
       OpenCode.Tool.RegistrySpec
