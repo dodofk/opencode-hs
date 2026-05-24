@@ -158,3 +158,21 @@ tests:
       - hspec-discover >= 2.11
       - QuickCheck >= 2.14
       - temporary >= 1.3
+    other-modules:
+      - OpenCode.ConfigSpec
+      - OpenCode.DBSpec
+      - OpenCode.LLM.MockSpec
+      - OpenCode.LLM.OpenAISpec
+      - OpenCode.LLM.RequestSpec
+      - OpenCode.LLM.SchemaSpec
+      - OpenCode.Session.EventsSpec
+      - OpenCode.Session.PromptSpec
+      - OpenCode.SessionSpec
+      - OpenCode.TestEnv
+      - OpenCode.Tool.BashSpec
+      - OpenCode.Tool.EditFileSpec
+      - OpenCode.Tool.ReadFileSpec
+      - OpenCode.Tool.RegistrySpec
+      - OpenCode.Tool.TypesSpec
+      - OpenCode.Tool.WriteFileSpec
+      - OpenCode.TypesSpec

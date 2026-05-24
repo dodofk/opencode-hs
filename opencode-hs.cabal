@@ -288,13 +288,13 @@ test-suite opencode-hs-test
       OpenCode.Session.PromptSpec
       OpenCode.SessionSpec
       OpenCode.TestEnv
+      OpenCode.Tool.BashSpec
       OpenCode.Tool.EditFileSpec
       OpenCode.Tool.ReadFileSpec
       OpenCode.Tool.RegistrySpec
       OpenCode.Tool.TypesSpec
       OpenCode.Tool.WriteFileSpec
       OpenCode.TypesSpec
-      Paths_opencode_hs
   hs-source-dirs:
       test
   default-extensions:
