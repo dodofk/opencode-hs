@@ -77,6 +77,8 @@ library:
   source-dirs: src
   exposed-modules:
     - OpenCode.App
+    - OpenCode.App.Error
+    - OpenCode.App.Types
     - OpenCode.Config
     - OpenCode.Types
     - OpenCode.DB
@@ -90,6 +92,7 @@ library:
     - OpenCode.LLM.Types
     - OpenCode.Tool.Types
     - OpenCode.Tool.ReadFile
+    - OpenCode.Tool.Registry
     - OpenCode.Tool.WriteFile
     - OpenCode.Tool.EditFile
     - OpenCode.Tool.Bash

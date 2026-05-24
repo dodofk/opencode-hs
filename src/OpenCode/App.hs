@@ -1,6 +1,10 @@
 -- | Application monad, environment, and top-level entry point.
+-- This module re-exports the leaf types from 'OpenCode.App.Error' and
+-- 'OpenCode.App.Types' so consumers can keep using 'OpenCode.App' as a
+-- single entry point, while the leaf modules remain dependency-free of
+-- 'OpenCode.Tool.*'.
 module OpenCode.App
-  ( -- * Monad
+  ( -- * Re-exports
     AppM
   , AppEnv (..)
   , AppError (..)
@@ -14,58 +18,14 @@ module OpenCode.App
   ) where
 
 import Control.Exception (SomeException, try)
-import Control.Monad.Except (ExceptT, runExceptT, throwError)
+import Control.Monad.Except (runExceptT, throwError)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Reader (ReaderT, asks, runReaderT)
-import Data.Text (Text)
-import Data.Text qualified as Text
-import Database.SQLite.Simple (Connection)
+import Control.Monad.Reader (asks, runReaderT)
+import qualified Data.Text as Text
+
+import OpenCode.App.Error (AppError (..))
+import OpenCode.App.Types (AppEnv (..), AppM)
 import OpenCode.Config (Config)
-
--- ---------------------------------------------------------------------------
--- AppM
--- ---------------------------------------------------------------------------
-
--- | The application monad: @ReaderT AppEnv (ExceptT AppError IO)@.
---
--- Using a concrete transformer stack (not MTL typeclasses) keeps error
--- messages and instance resolution simple.
-type AppM = ReaderT AppEnv (ExceptT AppError IO)
-
--- ---------------------------------------------------------------------------
--- Environment
---
--- Fields are added one per milestone:
---   M1: envConfig
---   M2: envDb
---   M5: envRegistry
---   M6: envEventChan, envAbort
--- ---------------------------------------------------------------------------
-
-data AppEnv = AppEnv
-  { envConfig :: Config
-  , envDb     :: Connection
-  -- envRegistry :: ToolRegistry   -- added in M5
-  -- envEventChan :: BChan …       -- added in M6
-  -- envAbort     :: TVar Bool     -- added in M6
-  }
-
--- ---------------------------------------------------------------------------
--- Errors
--- ---------------------------------------------------------------------------
-
-data AppError
-  = ConfigError Text
-  | LLMError Text
-  | ToolError Text Text   -- ^ tool name, message
-  | DatabaseError Text
-  | MCPError Text
-  | UnexpectedError Text
-  deriving stock (Show, Eq)
-
--- ---------------------------------------------------------------------------
--- Runners
--- ---------------------------------------------------------------------------
 
 runAppM :: AppEnv -> AppM a -> IO (Either AppError a)
 runAppM env action = runExceptT (runReaderT action env)
@@ -73,10 +33,6 @@ runAppM env action = runExceptT (runReaderT action env)
 -- | Top-level entry point — CLI dispatch added in M8.
 runApp :: IO ()
 runApp = putStrLn "opencode-hs: not yet implemented"
-
--- ---------------------------------------------------------------------------
--- Helpers
--- ---------------------------------------------------------------------------
 
 -- | Lift an IO action, converting any synchronous exception into
 -- 'UnexpectedError' so it stays within the typed error channel.

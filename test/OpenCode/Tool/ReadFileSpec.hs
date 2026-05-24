@@ -64,6 +64,6 @@ spec = describe "readFileTool" $ do
 runRead :: ReadFileInput -> IO (Either AppError Text)
 runRead input = do
   let reg = registerTool readFileTool emptyRegistry
-      env = AppEnv { envConfig = undefined, envDb = undefined }
+      env = AppEnv { envConfig = undefined, envDb = undefined, envRegistry = undefined }
       args = Aeson.toJSON input
   runExceptT (runReaderT (executeTool reg "read_file" args) env)

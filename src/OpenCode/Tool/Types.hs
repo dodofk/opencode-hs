@@ -35,7 +35,8 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import GHC.Generics (Generic)
 
-import OpenCode.App (AppError (..), AppM)
+import OpenCode.App.Error (AppError (..))
+import {-# SOURCE #-} OpenCode.App.Types (AppM)
 import OpenCode.LLM.Types (ToolDefinition (..))
 
 -- ---------------------------------------------------------------------------

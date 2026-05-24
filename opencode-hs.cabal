@@ -22,6 +22,8 @@ source-repository head
 library
   exposed-modules:
       OpenCode.App
+      OpenCode.App.Error
+      OpenCode.App.Types
       OpenCode.Config
       OpenCode.Types
       OpenCode.DB
@@ -35,6 +37,7 @@ library
       OpenCode.LLM.Types
       OpenCode.Tool.Types
       OpenCode.Tool.ReadFile
+      OpenCode.Tool.Registry
       OpenCode.Tool.WriteFile
       OpenCode.Tool.EditFile
       OpenCode.Tool.Bash
@@ -192,7 +195,9 @@ test-suite opencode-hs-test
       OpenCode.LLM.RequestSpec
       OpenCode.LLM.SchemaSpec
       OpenCode.SessionSpec
+      OpenCode.Tool.EditFileSpec
       OpenCode.Tool.ReadFileSpec
+      OpenCode.Tool.RegistrySpec
       OpenCode.Tool.TypesSpec
       OpenCode.Tool.WriteFileSpec
       OpenCode.TypesSpec
