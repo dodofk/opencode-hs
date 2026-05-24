@@ -171,6 +171,7 @@ tests:
       - OpenCode.TestEnv
       - OpenCode.Tool.BashSpec
       - OpenCode.Tool.EditFileSpec
+      - OpenCode.Tool.GlobSpec
       - OpenCode.Tool.ReadFileSpec
       - OpenCode.Tool.RegistrySpec
       - OpenCode.Tool.TypesSpec
