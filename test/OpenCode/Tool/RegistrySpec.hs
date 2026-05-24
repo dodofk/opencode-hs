@@ -17,9 +17,10 @@ import OpenCode.Tool.Types
 spec :: Spec
 spec = describe "defaultBuiltinRegistry" $ do
 
-  it "registers exactly the three M5 file tools by name" $
+  it "registers all 6 built-in tools by name" $
     Map.keys (unRegistry defaultBuiltinRegistry)
-      `shouldMatchList` ["read_file", "write_file", "edit_file"]
+      `shouldMatchList`
+        ["read_file", "write_file", "edit_file", "bash", "glob", "grep"]
 
   it "is accessible from AppEnv via envRegistry" $
     let env = AppEnv
@@ -29,7 +30,7 @@ spec = describe "defaultBuiltinRegistry" $ do
           , envEventChan = undefined
           , envAbort     = undefined
           }
-    in Map.size (unRegistry (envRegistry env)) `shouldBe` 3
+    in Map.size (unRegistry (envRegistry env)) `shouldBe` 6
 
   it "round-trips write_file then read_file through executeTool" $
     withSystemTempDirectory "reg" $ \dir -> do

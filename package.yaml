@@ -144,6 +144,17 @@ executables:
       - stm
       - text
 
+  m7-acceptance:
+    main:         M7Acceptance.hs
+    source-dirs:  verify
+    other-modules: []
+    dependencies:
+      - opencode-hs
+      - aeson
+      - brick
+      - stm
+      - text
+
 tests:
   opencode-hs-test:
     main:         Spec.hs
