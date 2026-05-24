@@ -192,7 +192,7 @@ test-suite opencode-hs-test
       OpenCode.LLM.RequestSpec
       OpenCode.LLM.SchemaSpec
       OpenCode.SessionSpec
-      OpenCode.ToolSpec
+      OpenCode.Tool.TypesSpec
       OpenCode.TypesSpec
       Paths_opencode_hs
   hs-source-dirs:
