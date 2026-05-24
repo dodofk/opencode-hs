@@ -7,18 +7,28 @@ import Control.Monad.Except (runExceptT)
 import Control.Monad.Reader (runReaderT)
 import Database.SQLite.Simple (close)
 import Test.Hspec
+import qualified Data.List.NonEmpty as NE
 
 import OpenCode.App (AppEnv (..))
 import OpenCode.Config (Config (..), ProviderConfig (..))
+import qualified OpenCode.DB as DB
 import OpenCode.DB (openDb)
-import OpenCode.Session (createSession, loadSession)
+import OpenCode.LLM.Mock (staticStreamer)
+import OpenCode.Session (agentic, createSession, loadSession)
+import OpenCode.TestEnv (withTestEnv)
 import OpenCode.Tool.Registry (defaultBuiltinRegistry)
 import OpenCode.Types
   ( ApiKey (..)
+  , MessagePart (..)
   , ModelId (..)
   , ProviderId (..)
+  , Role (..)
   , Session (..)
   , SessionId (..)
+  , StreamEvent (..)
+  , Usage (..)
+  , msgParts
+  , msgRole
   )
 
 spec :: Spec
@@ -52,6 +62,34 @@ spec = do
         result <- runExceptT $ runReaderT
           (loadSession (SessionId "no-such-session")) env
         result `shouldBe` Right Nothing
+
+  describe "agentic (text-only, one round)" $ do
+
+    it "builds an assistant message from a scripted text-only stream" $ do
+      withTestEnv $ \env session -> do
+        let streamer = staticStreamer
+              [ TextDelta "Hello"
+              , TextDelta " world"
+              , StreamDone (Usage 5 2 Nothing Nothing)
+              ]
+        result <- runExceptT $ runReaderT
+          (agentic streamer (sessionId session) []) env
+        case result of
+          Right msgs -> do
+            length msgs `shouldBe` 1
+            let m = head msgs
+            msgRole m `shouldBe` RoleAssistant
+            NE.toList (msgParts m) `shouldBe` [TextPart "Hello world"]
+          Left err -> expectationFailure (show err)
+
+    it "persists the assistant message to the DB" $ do
+      withTestEnv $ \env session -> do
+        let streamer = staticStreamer [TextDelta "hi", StreamDone (Usage 1 1 Nothing Nothing)]
+        _ <- runExceptT $ runReaderT
+          (agentic streamer (sessionId session) []) env
+        stored <- DB.getMessages (envDb env) (sessionId session)
+        length stored `shouldBe` 1
+        msgRole (head stored) `shouldBe` RoleAssistant
 
 -- ---------------------------------------------------------------------------
 -- Helper: env with an empty in-memory DB (no starter session)

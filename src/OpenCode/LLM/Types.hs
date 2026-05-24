@@ -3,6 +3,7 @@ module OpenCode.LLM.Types
   ( ToolDefinition (..)
   , LLMRequest (..)
   , LLMProvider (..)
+  , Streamer
   ) where
 
 import Conduit (ConduitT)
@@ -44,3 +45,12 @@ class LLMProvider p where
     :: p
     -> LLMRequest
     -> ConduitT () StreamEvent (ResourceT IO) ()
+
+-- ---------------------------------------------------------------------------
+-- Streaming function alias
+-- ---------------------------------------------------------------------------
+
+-- | A streaming-completion function. Pure with respect to provider choice:
+-- production code partial-applies 'streamOpenAI' or 'streamAnthropic' to get
+-- one of these; tests use mock-based variants.
+type Streamer = LLMRequest -> ConduitT () StreamEvent (ResourceT IO) ()
