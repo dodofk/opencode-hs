@@ -8,7 +8,9 @@ import qualified Data.Aeson.KeyMap as KM
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import qualified Data.Text.IO as Text
 import System.FilePath ((</>))
+import qualified System.Directory as Dir
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec
 
@@ -89,6 +91,82 @@ spec = describe "grepTool" $ do
         Right t -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 t) of
           Right (matches :: [Aeson.Value]) -> length matches `shouldBe` 1
           Left e  -> expectationFailure ("decode failed: " <> e)
+        Left err -> expectationFailure (show err)
+
+  it "matches unicode content in a file" $
+    withSystemTempDirectory "grep" $ \dir -> do
+      let path = dir </> "unicode.txt"
+      -- Write UTF-8 content with CJK, emoji, and accented characters
+      Text.writeFile path "hello world\n日本語のテスト\nsome café text\nrocket 🚀 launch\n"
+      result <- runGrep (GrepInput "日本語" (Just path) (Just False))
+      case result of
+        Right t -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 t) of
+          Right (matches :: [Aeson.Value]) -> do
+            length matches `shouldBe` 1
+            case head matches of
+              Aeson.Object o -> do
+                KM.lookup (Key.fromText "line") o `shouldBe` Just (Aeson.Number 2)
+                case KM.lookup (Key.fromText "text") o of
+                  Just (Aeson.String s) -> s `shouldSatisfy` Text.isInfixOf "日本語のテスト"
+                  other -> expectationFailure ("expected text string, got " <> show other)
+              other -> expectationFailure ("expected object, got " <> show other)
+          Left e -> expectationFailure ("decode failed: " <> e)
+        Left err -> expectationFailure (show err)
+
+  it "matches unicode content with emoji pattern" $
+    withSystemTempDirectory "grep" $ \dir -> do
+      let path = dir </> "emoji.txt"
+      Text.writeFile path "line one\nlaunch 🚀 now\nline three\n"
+      result <- runGrep (GrepInput "🚀" (Just path) (Just False))
+      case result of
+        Right t -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 t) of
+          Right (matches :: [Aeson.Value]) -> do
+            length matches `shouldBe` 1
+            case head matches of
+              Aeson.Object o ->
+                KM.lookup (Key.fromText "line") o `shouldBe` Just (Aeson.Number 2)
+              other -> expectationFailure ("expected object, got " <> show other)
+          Left e -> expectationFailure ("decode failed: " <> e)
+        Left err -> expectationFailure (show err)
+
+  it "finds matches in a file with a unicode filename" $
+    withSystemTempDirectory "grep" $ \dir -> do
+      let path = dir </> "données.txt"
+      Text.writeFile path "première ligne\ndeuxième ligne\ntroisième ligne\n"
+      result <- runGrep (GrepInput "deuxième" (Just path) (Just False))
+      case result of
+        Right t -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 t) of
+          Right (matches :: [Aeson.Value]) -> do
+            length matches `shouldBe` 1
+            case head matches of
+              Aeson.Object o -> do
+                KM.lookup (Key.fromText "line") o `shouldBe` Just (Aeson.Number 2)
+                case KM.lookup (Key.fromText "file") o of
+                  Just (Aeson.String s) -> Text.unpack s `shouldContain` "données.txt"
+                  other -> expectationFailure ("expected file string, got " <> show other)
+              other -> expectationFailure ("expected object, got " <> show other)
+          Left e -> expectationFailure ("decode failed: " <> e)
+        Left err -> expectationFailure (show err)
+
+  it "recursively finds unicode content in files with CJK filenames" $
+    withSystemTempDirectory "grep" $ \dir -> do
+      let subdir = dir </> "子目录"
+      Dir.createDirectory subdir
+      Text.writeFile (subdir </> "文件.txt") "这里有中文内容\n搜索目标\n"
+      Text.writeFile (dir </> "plain.txt") "no match\n"
+      result <- runGrep (GrepInput "搜索目标" (Just dir) (Just True))
+      case result of
+        Right t -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 t) of
+          Right (matches :: [Aeson.Value]) -> do
+            length matches `shouldBe` 1
+            case head matches of
+              Aeson.Object o -> do
+                KM.lookup (Key.fromText "line") o `shouldBe` Just (Aeson.Number 2)
+                case KM.lookup (Key.fromText "file") o of
+                  Just (Aeson.String s) -> Text.unpack s `shouldContain` "文件.txt"
+                  other -> expectationFailure ("expected file string, got " <> show other)
+              other -> expectationFailure ("expected object, got " <> show other)
+          Left e -> expectationFailure ("decode failed: " <> e)
         Left err -> expectationFailure (show err)
 
 -- ---------------------------------------------------------------------------
