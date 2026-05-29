@@ -4,7 +4,7 @@ Each milestone is self-contained, testable, and merges as a single PR.
 Milestones are sequenced; no parallelism is assumed for solo development.
 Acceptance for each is one or more concrete shell commands plus expected outcome — not narrative.
 
-## Status snapshot (as of 2026-05-23)
+## Status snapshot (as of 2026-05-29)
 
 | #   | Title                                  | Status    | Commit / PR        |
 | --- | -------------------------------------- | --------- | ------------------ |
@@ -16,7 +16,7 @@ Acceptance for each is one or more concrete shell commands plus expected outcome
 | M5  | Tool System: file I/O                  | done      | `5b9ddc9..`        |
 | M6  | Session Loop                           | done      | `4d0d2ba..`        |
 | M7  | Tool System: execution + search        | done      | `1e0425d..`        |
-| M8  | TUI: static layout                     | pending   | —                  |
+| M8  | TUI: static layout                     | done      | `see M8 PR`        |
 | M9  | TUI: streaming + tool inline + abort   | pending   | —                  |
 | M10 | CLI commands                           | pending   | —                  |
 | M11 | Anthropic provider                     | pending   | —                  |
@@ -260,9 +260,11 @@ Outcome: all ADTs from SPEC §3.2 in `OpenCode.Types`; YAML config loader with e
 
 ---
 
-## M8 — TUI: static layout
+## M8 — TUI: static layout — DONE
 
 **Goal**: A `brick`-based UI that can render a fixed message history and accept user input. No live streaming yet — that arrives in M9.
+
+Outcome: `OpenCode.TUI.Types` (`ResourceName`, `AppState`), `OpenCode.TUI.Render` (`drawUI`: chat viewport with role-prefixed messages and inline `⚙ tool(args)` blocks, status bar, bordered input editor), and `OpenCode.TUI.App` (`handleEvent` for Ctrl+C/Enter/PgUp/PgDn/editor keys, `startTUI`). `runApp` now launches the TUI on a fresh session when invoked with no CLI arguments (the registry is threaded in from `app/Main.hs` to avoid an import cycle). New hspec coverage: `drawUI` smoke render over generated histories and an Enter-appends-message property.
 
 ### Tasks
 
