@@ -78,6 +78,8 @@ library
     , filepath >=1.4
     , http-conduit >=2.3.8
     , http-types >=0.12
+    , microlens >=0.4
+    , microlens-mtl >=0.2
     , mtl >=2.3
     , optparse-applicative >=0.18
     , process >=1.6
@@ -122,6 +124,8 @@ executable m2-verify-schema
     , filepath >=1.4
     , http-conduit >=2.3.8
     , http-types >=0.12
+    , microlens >=0.4
+    , microlens-mtl >=0.2
     , mtl >=2.3
     , opencode-hs
     , optparse-applicative >=0.18
@@ -167,6 +171,8 @@ executable m5-acceptance
     , filepath >=1.4
     , http-conduit >=2.3.8
     , http-types >=0.12
+    , microlens >=0.4
+    , microlens-mtl >=0.2
     , mtl >=2.3
     , opencode-hs
     , optparse-applicative >=0.18
@@ -212,6 +218,8 @@ executable m6-acceptance
     , filepath >=1.4
     , http-conduit >=2.3.8
     , http-types >=0.12
+    , microlens >=0.4
+    , microlens-mtl >=0.2
     , mtl
     , opencode-hs
     , optparse-applicative >=0.18
@@ -257,6 +265,8 @@ executable m7-acceptance
     , filepath >=1.4
     , http-conduit >=2.3.8
     , http-types >=0.12
+    , microlens >=0.4
+    , microlens-mtl >=0.2
     , mtl >=2.3
     , opencode-hs
     , optparse-applicative >=0.18
@@ -304,6 +314,8 @@ executable opencode-hs
     , filepath >=1.4
     , http-conduit >=2.3.8
     , http-types >=0.12
+    , microlens >=0.4
+    , microlens-mtl >=0.2
     , mtl >=2.3
     , opencode-hs
     , optparse-applicative >=0.18
@@ -341,6 +353,8 @@ test-suite opencode-hs-test
       OpenCode.Tool.RegistrySpec
       OpenCode.Tool.TypesSpec
       OpenCode.Tool.WriteFileSpec
+      OpenCode.TUI.AppSpec
+      OpenCode.TUI.RenderSpec
       OpenCode.TypesSpec
   hs-source-dirs:
       test
@@ -373,6 +387,8 @@ test-suite opencode-hs-test
     , hspec-discover >=2.11
     , http-conduit >=2.3.8
     , http-types >=0.12
+    , microlens >=0.4
+    , microlens-mtl >=0.2
     , mtl >=2.3
     , opencode-hs
     , optparse-applicative >=0.18
