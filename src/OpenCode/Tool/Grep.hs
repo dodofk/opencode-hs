@@ -3,6 +3,8 @@
 module OpenCode.Tool.Grep
   ( grepTool
   , grepSchema
+    -- * Internals (exported for testing)
+  , grepFallback
   ) where
 
 import Control.Exception (SomeException, try)

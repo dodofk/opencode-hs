@@ -5,11 +5,12 @@ import Control.Monad.Reader (runReaderT)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KM
+import qualified Data.ByteString as BS
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
-import qualified Data.Text.IO as Text
 import System.FilePath ((</>))
+import qualified GHC.IO.Encoding as Enc
 import qualified System.Directory as Dir
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec
@@ -18,6 +19,7 @@ import OpenCode.App (AppEnv (..), AppError)
 import OpenCode.Tool.Grep
 import OpenCode.Tool.Types
   ( GrepInput (..)
+  , GrepMatch (..)
   , emptyRegistry
   , executeTool
   , registerTool
@@ -25,6 +27,14 @@ import OpenCode.Tool.Types
 
 spec :: Spec
 spec = describe "grepTool" $ do
+
+  -- Make these tests independent of the ambient locale. Unicode file *content*
+  -- is written as raw UTF-8 bytes (see 'writeFileUtf8'), and unicode *paths*
+  -- (CJK / accented file and directory names) are encoded and decoded as UTF-8
+  -- regardless of LANG. Without this, fixtures fail under a non-UTF-8 locale
+  -- such as LC_ALL=C, whose default filesystem encoding cannot represent
+  -- non-Latin code points.
+  runIO (Enc.setLocaleEncoding Enc.utf8 >> Enc.setFileSystemEncoding Enc.utf8)
 
   it "finds a single needle in a fixture file" $
     withSystemTempDirectory "grep" $ \dir -> do
@@ -97,7 +107,7 @@ spec = describe "grepTool" $ do
     withSystemTempDirectory "grep" $ \dir -> do
       let path = dir </> "unicode.txt"
       -- Write UTF-8 content with CJK, emoji, and accented characters
-      Text.writeFile path "hello world\n日本語のテスト\nsome café text\nrocket 🚀 launch\n"
+      writeFileUtf8 path "hello world\n日本語のテスト\nsome café text\nrocket 🚀 launch\n"
       result <- runGrep (GrepInput "日本語" (Just path) (Just False))
       case result of
         Right t -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 t) of
@@ -116,7 +126,7 @@ spec = describe "grepTool" $ do
   it "matches unicode content with emoji pattern" $
     withSystemTempDirectory "grep" $ \dir -> do
       let path = dir </> "emoji.txt"
-      Text.writeFile path "line one\nlaunch 🚀 now\nline three\n"
+      writeFileUtf8 path "line one\nlaunch 🚀 now\nline three\n"
       result <- runGrep (GrepInput "🚀" (Just path) (Just False))
       case result of
         Right t -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 t) of
@@ -132,7 +142,7 @@ spec = describe "grepTool" $ do
   it "finds matches in a file with a unicode filename" $
     withSystemTempDirectory "grep" $ \dir -> do
       let path = dir </> "données.txt"
-      Text.writeFile path "première ligne\ndeuxième ligne\ntroisième ligne\n"
+      writeFileUtf8 path "première ligne\ndeuxième ligne\ntroisième ligne\n"
       result <- runGrep (GrepInput "deuxième" (Just path) (Just False))
       case result of
         Right t -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 t) of
@@ -152,8 +162,8 @@ spec = describe "grepTool" $ do
     withSystemTempDirectory "grep" $ \dir -> do
       let subdir = dir </> "子目录"
       Dir.createDirectory subdir
-      Text.writeFile (subdir </> "文件.txt") "这里有中文内容\n搜索目标\n"
-      Text.writeFile (dir </> "plain.txt") "no match\n"
+      writeFileUtf8 (subdir </> "文件.txt") "这里有中文内容\n搜索目标\n"
+      writeFileUtf8 (dir </> "plain.txt") "no match\n"
       result <- runGrep (GrepInput "搜索目标" (Just dir) (Just True))
       case result of
         Right t -> case Aeson.eitherDecodeStrict (Text.encodeUtf8 t) of
@@ -169,9 +179,45 @@ spec = describe "grepTool" $ do
           Left e -> expectationFailure ("decode failed: " <> e)
         Left err -> expectationFailure (show err)
 
+  -- The tests above run through 'grepExec', which uses ripgrep whenever it is
+  -- on PATH (CI and most dev boxes) — so the pure-Haskell fallback walk, and
+  -- the 'recursive' flag that only the fallback consumes, are never exercised
+  -- there. These drive 'grepFallback' directly to cover that path on unicode.
+
+  it "fallback: matches unicode content via a recursive walk over a CJK-named subdir" $
+    withSystemTempDirectory "grep" $ \dir -> do
+      let subdir = dir </> "子目录"
+      Dir.createDirectory subdir
+      writeFileUtf8 (subdir </> "文件.txt") "这里有中文内容\n搜索目标\n"
+      writeFileUtf8 (dir </> "plain.txt") "no match\n"
+      matches <- grepFallback "搜索目标" dir True
+      map gmLine matches `shouldBe` [2]
+      case matches of
+        [m] -> do
+          gmFile m `shouldContain` "文件.txt"
+          gmText m `shouldSatisfy` Text.isInfixOf "搜索目标"
+        _   -> expectationFailure ("expected exactly one match, got " <> show matches)
+
+  it "fallback: recursive flag gates directory descent" $
+    withSystemTempDirectory "grep" $ \dir -> do
+      let subdir = dir </> "子目录"
+      Dir.createDirectory subdir
+      writeFileUtf8 (dir </> "top.txt")     "需要 at top\n"
+      writeFileUtf8 (subdir </> "文件.txt") "需要 nested\n"
+      shallow <- grepFallback "需要" dir False
+      deep    <- grepFallback "需要" dir True
+      map gmLine shallow `shouldBe` [1]   -- only top.txt is scanned
+      length deep        `shouldBe` 2     -- top.txt + 子目录/文件.txt
+
 -- ---------------------------------------------------------------------------
--- Helper
+-- Helpers
 -- ---------------------------------------------------------------------------
+
+-- | Write file content as raw UTF-8 bytes, independent of the process locale
+-- (unlike 'Data.Text.IO.writeFile', which encodes through the handle's locale
+-- encoding and throws under a non-UTF-8 locale).
+writeFileUtf8 :: FilePath -> Text -> IO ()
+writeFileUtf8 path = BS.writeFile path . Text.encodeUtf8
 
 runGrep :: GrepInput -> IO (Either AppError Text)
 runGrep input = do
