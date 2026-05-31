@@ -14,6 +14,7 @@ import Test.QuickCheck (Property, ioProperty)
 import OpenCode.Session.Events (RunState (Idle))
 import OpenCode.TUI.App
   ( appendUserMessage
+  , applyEnter
   , currentInput
   , initialState
   , modelLabel
@@ -34,7 +35,7 @@ import OpenCode.Types
 spec :: Spec
 spec = do
 
-  describe "appendUserMessage (the Enter action)" $ do
+  describe "appendUserMessage (append-and-clear helper)" $ do
 
     it "appends the message and clears the input buffer" $ do
       st  <- stateWithInput "hello there"
@@ -48,6 +49,39 @@ spec = do
         let st' = appendUserMessage userMsg st
         pure $ Seq.length (asMessages st') == Seq.length (asMessages st) + 1
              && currentInput st' == ""
+
+  describe "applyEnter (the Enter-key action: submit gate + append + clear)" $ do
+
+    it "appends the built message and clears the input when submittable" $ do
+      st <- stateWithInput "hello there"
+      let st' = applyEnter userMsg st
+      Seq.length (asMessages st') `shouldBe` Seq.length (asMessages st) + 1
+      currentInput st' `shouldBe` ""
+      -- the message that landed in history is exactly the one we built
+      fmap msgId (lastMsg st') `shouldBe` Just (msgId userMsg)
+
+    it "leaves state unchanged on empty input" $ do
+      st <- stateWithInput ""
+      let st' = applyEnter userMsg st
+      Seq.length (asMessages st') `shouldBe` Seq.length (asMessages st)
+      currentInput st' `shouldBe` ""
+
+    it "leaves state unchanged on whitespace-only input (input preserved, not cleared)" $ do
+      st <- stateWithInput "   \n  "
+      let st' = applyEnter userMsg st
+      Seq.length (asMessages st') `shouldBe` Seq.length (asMessages st)
+      currentInput st' `shouldBe` currentInput st
+
+    prop "submits iff the current input is non-blank" $
+      \(content :: String) -> ioProp $ do
+        st <- stateWithInput' content
+        let st'  = applyEnter userMsg st
+            gate = shouldSubmit (currentInput st)
+        pure $ if gate
+          then Seq.length (asMessages st') == Seq.length (asMessages st) + 1
+               && currentInput st' == ""
+          else Seq.length (asMessages st') == Seq.length (asMessages st)
+               && currentInput st' == currentInput st
 
   describe "shouldSubmit" $ do
     it "rejects empty input" $ shouldSubmit "" `shouldBe` False
@@ -90,6 +124,10 @@ stateWithInput t = do
 
 stateWithInput' :: String -> IO AppState
 stateWithInput' = stateWithInput . T.pack
+
+lastMsg :: AppState -> Maybe Message
+lastMsg st = Seq.lookup (Seq.length s - 1) s
+  where s = asMessages st
 
 userMsg :: Message
 userMsg = Message
