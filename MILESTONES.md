@@ -298,31 +298,39 @@ Outcome: `OpenCode.TUI.Types` (`ResourceName`, `AppState`), `OpenCode.TUI.Render
 
 ## M9 — TUI: streaming + tool inline + abort
 
-**Goal**: Layer live streaming, inline tool execution rendering, and abort on top of M8's static TUI.
+**Goal**: Layer live streaming, inline tool execution rendering, and mid-stream abort on top of M8's static TUI.
 
 ### Tasks
 
-- Extend `AppState` with `asPartialText :: Text` (in-flight assistant message buffer).
-- `handleEvent` for `AppEvent SessionEvent`:
+- **`Session.hs` (core change)**: replace `agentic`'s `stream .| Conduit.sinkList` with a fold that, per `StreamEvent`, emits `PartialText δ` onto `envEventChan` (for `TextDelta`s), accumulates the event, and reads `envAbort` — stopping early when set. `buildAssistantMessage` then runs on the accumulated list (a prefix on abort → truncated message). On abort: emit `MessageAppended` (finalize the partial) + `RunStateChanged Idle`, then stop; an empty partial skips persistence. The loop already emits `RunStateChanged`/`MessageAppended`/`ToolStarted`/`ToolFinished`; only `PartialText` + the per-delta abort check are new.
+- Extend `AppState` with `asPartialText :: Text` (in-flight buffer), plus `asEnv :: AppEnv` + `asSessionId :: SessionId` (Enter/Esc fork the loop / flip `envAbort`); drop the now-redundant `asEventChan` (reach it via `asEnv`).
+- Extract `applyEvent :: SessionEvent -> AppState -> AppState` (pure; exported for testing — mirrors M8's `applyEnter`); `handleEvent`'s `AppEvent SessionEvent` branch delegates to it:
   - `MessageAppended m` → append to `asMessages`, clear `asPartialText`.
   - `PartialText t` → append to `asPartialText`.
   - `ToolStarted n` → `asRunState = RunningTool n`.
-  - `ToolFinished n out` → log to viewport (or fold into the next `MessageAppended`).
-  - `RunStateChanged s` → update `asRunState`.
-  - `ErrorOccurred e` → append a red error line to the viewport.
+  - `ToolFinished _ _` → no-op (the tool's call/result parts arrive in the next `MessageAppended`).
+  - `RunStateChanged s` → `asRunState = s`; if `Idle`, also clear `asPartialText`.
+  - `ErrorOccurred e` → append a synthetic assistant `Message` with a single `ErrorPart e` (red).
 - `handleEvent` for `Esc`: write `True` to `envAbort` `TVar`.
-- `handleEvent` for `Enter` (upgraded): fork an `async` calling `processUserMessage`. The session loop emits `SessionEvent`s into `envEventChan`, which `customMain` delivers as `AppEvent`s.
-- `render` (upgraded): while `asRunState /= Idle`, render `asPartialText` as a synthetic in-flight assistant message at the bottom of the viewport (dim styling).
-- `startTUI` (upgraded): create the `BChan`, run with `customMain`, install a background thread that pumps `envEventChan` into the brick channel.
+- `handleEvent` for `Enter` (upgraded): only while `asRunState == Idle`; append the user `Message`, then fork an `async` running `processUserMessage[With]` against `asEnv`, catching errors → `ErrorOccurred`. Ignore Enter while a run is active.
+- `render` (upgraded): while `asRunState /= Idle` and `asPartialText` is non-empty, render it as a dim synthetic in-flight assistant message at the bottom of the viewport.
+- `startTUI` (upgraded): run with `customMain` fed `envEventChan` directly — **no pump thread** (`envEventChan :: BChan SessionEvent` is exactly what `customMain` consumes).
+- Mock streamer (testing-only): a naive `Streamer` yielding a canned reply in chunks with `threadDelay` (~10 s total), wired via `processUserMessageWith` when `OPENCODE_MOCK=1`, so streaming + abort can be exercised without API keys.
 
 ### Tests
 
-- Mock event drive: feed a fixed sequence of `SessionEvent`s into `handleEvent` against a fixture `AppState`; assert the final state has the expected message list and empty `asPartialText`.
-- Abort test: emit `PartialText "abc"`, then trigger the Esc handler, then `RunStateChanged Idle` → `asPartialText == ""` and `asRunState == Idle`.
+- Mock event drive: feed a fixed `SessionEvent` sequence into `applyEvent` against a fixture `AppState`; assert the final message list and empty `asPartialText`. Mutation-verify each reducer test.
+- Abort test: `PartialText "abc"` → `RunStateChanged Idle` → `asPartialText == ""` and `asRunState == Idle`.
+- Manual: `OPENCODE_MOCK=1 stack run` — watch the reply stream live; Esc mid-stream keeps the partial as a finalized message.
 
 ### Acceptance
 
-- `stack run` (against a real or mock provider) opens a TUI; pressing Enter on a prompt streams the response live; pressing Esc aborts mid-stream and the partial text remains visible as a finalized message.
+- `stack run` (with `OPENAI_API_KEY`) or `OPENCODE_MOCK=1 stack run` opens a TUI; pressing Enter streams the response live; pressing Esc aborts mid-stream and the partial text remains visible as a finalized, persisted message; Ctrl+C exits cleanly.
+
+### Notes
+
+- **Cooperative abort** (not async cancellation): the stream-consuming fold checks `envAbort` per `StreamEvent` and stops pulling; `ResourceT` then closes the HTTP connection.
+- **Abort reconciliation**: `applyEvent` clears `asPartialText` on both `MessageAppended` and `RunStateChanged Idle`; the abort path emits `MessageAppended(partial) + RunStateChanged Idle`, so the partial both persists as a message and clears the buffer.
 
 ---
 
