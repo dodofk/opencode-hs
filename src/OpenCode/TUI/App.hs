@@ -12,6 +12,7 @@ module OpenCode.TUI.App
     -- * State helpers (pure; exported for testing)
   , initialState
   , appendUserMessage
+  , applyEnter
   , currentInput
   , inputContents
   , shouldSubmit
@@ -107,7 +108,7 @@ handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
   let body = currentInput st
   when (shouldSubmit body) $ do
     msg <- liftIO (mkUserMessage body)
-    put (appendUserMessage msg st)
+    put (applyEnter msg st)
 handleEvent (VtyEvent (V.EvKey V.KPageUp   [])) = M.vScrollBy chatScroll (-pageStep)
 handleEvent (VtyEvent (V.EvKey V.KPageDown [])) = M.vScrollBy chatScroll pageStep
 handleEvent (VtyEvent ev) = zoom inputL (E.handleEditorEvent (VtyEvent ev))
@@ -154,6 +155,23 @@ appendUserMessage m st = st
   { asMessages = asMessages st |> m
   , asInput    = emptyEditor
   }
+
+-- | Pure core of the Enter-key action: the @KEnter@ branch of 'handleEvent'
+-- delegates its state update here. Append the freshly-built user message and
+-- clear the input iff the current input is submittable; otherwise leave the
+-- state untouched.
+--
+-- 'handleEvent' already checks 'shouldSubmit' before building the message (to
+-- avoid minting a message id for blank input), so the guard here is redundant
+-- in production. It is repeated so this function is a total, self-contained
+-- specification of the Enter semantics — the submit gate together with the
+-- append-and-clear — that can be unit-tested directly. brick 2.1 exposes no
+-- pure 'EventM' runner, so testing that wiring through 'handleEvent' itself
+-- would require driving a live vty terminal.
+applyEnter :: Message -> AppState -> AppState
+applyEnter msg st
+  | shouldSubmit (currentInput st) = appendUserMessage msg st
+  | otherwise                      = st
 
 -- | A human-readable @provider:model@ label for the status bar.
 modelLabel :: ModelId -> Text

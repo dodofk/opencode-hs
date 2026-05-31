@@ -1,6 +1,9 @@
 module OpenCode.TUI.RenderSpec (spec) where
 
+import Brick (Widget)
 import qualified Brick.BChan as BChan
+import qualified Brick.Main as M
+import Brick.Widgets.Core (str)
 import qualified Brick.Widgets.Edit as E
 import Control.Exception (evaluate)
 import qualified Data.List.NonEmpty as NE
@@ -8,6 +11,7 @@ import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Time (UTCTime (..), fromGregorian, secondsToDiffTime)
+import qualified Graphics.Vty as V
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck
@@ -23,7 +27,7 @@ import Test.QuickCheck
   )
 
 import OpenCode.Session.Events (RunState (Idle))
-import OpenCode.TUI.Render (drawUI)
+import OpenCode.TUI.Render (drawUI, safeWrap)
 import OpenCode.TUI.Types (AppState (..), ResourceName (InputEditor))
 import OpenCode.Types
   ( Message (..)
@@ -36,35 +40,57 @@ import OpenCode.Types
   )
 
 spec :: Spec
-spec = describe "drawUI" $ do
+spec = do
 
-  it "produces a single top-level widget" $ do
-    st <- mkState []
-    length (drawUI st) `shouldBe` 1
+  describe "drawUI" $ do
 
-  prop "renders an arbitrary short history without throwing" $
-    forAll (resize 8 (listOf genMessage)) $ \msgs -> ioProperty $ do
-      st <- mkState msgs
-      -- Force the widget-list spine; total rendering code must not raise.
-      n <- evaluate (length (drawUI st))
-      pure (n == 1)
+    it "produces a single top-level widget" $ do
+      st <- mkState []
+      length (drawUI st) `shouldBe` 1
 
-  it "renders a message containing every MessagePart constructor" $ do
-    let m = Message
-          { msgId    = MessageId "m-multi"
-          , msgRole  = RoleAssistant
-          , msgParts = NE.fromList
-              [ TextPart "thinking"
-              , ToolCallPart (ToolCall "c1" "bash" (ToolArgs "{\"cmd\":\"ls\"}"))
-              , ToolResultPart (ToolResult "c1" "file.txt\n" False)
-              , ErrorPart "boom"
-              , TextPart ""        -- empty text must not break layout
-              ]
-          , msgCreated = t0
-          }
-    st <- mkState [m]
-    n <- evaluate (length (drawUI st))
-    n `shouldBe` 1
+    prop "renders an arbitrary short history without throwing" $
+      forAll (resize 8 (listOf genMessage)) $ \msgs -> ioProperty $ do
+        st <- mkState msgs
+        -- Force a *real* render, not just the widget-list spine: 'renderHeight'
+        -- runs every widget's deferred render action, so any bottom in the
+        -- rendering code (which 'evaluate . length' would miss) is exercised.
+        h <- renderHeight (drawUI st)
+        pure (h >= 1)
+
+    it "renders a message containing every MessagePart constructor" $ do
+      let m = Message
+            { msgId    = MessageId "m-multi"
+            , msgRole  = RoleAssistant
+            , msgParts = NE.fromList
+                [ TextPart "thinking"
+                , ToolCallPart (ToolCall "c1" "bash" (ToolArgs "{\"cmd\":\"ls\"}"))
+                , ToolResultPart (ToolResult "c1" "file.txt\n" False)
+                , ErrorPart "boom"
+                , TextPart ""        -- empty text must not break layout
+                ]
+            , msgCreated = t0
+            }
+      st <- mkState [m]
+      h <- renderHeight (drawUI st)
+      h `shouldSatisfy` (>= 1)
+
+  describe "safeWrap (empty-text guard)" $ do
+
+    -- 'renderWidget' pads every layer to the region with a background fill, so
+    -- the total image height is always the region height and can't reveal a
+    -- collapsed line. We inspect the rendered 'Picture' instead (the same
+    -- approach brick's own render test uses).
+    it "renders empty text as a single space line, not a collapsed image" $ do
+      -- safeWrap "" must render exactly like a real one-space line. Without the
+      -- guard, 'txtWrap \"\"' renders to pure background fill (an empty image),
+      -- which would NOT match.
+      let emptyPic = M.renderWidget Nothing [safeWrap ""] (80, 24)
+          spacePic = M.renderWidget Nothing [str " " :: Widget ResourceName] (80, 24)
+      show emptyPic `shouldBe` show spacePic
+
+    it "renders non-empty text as a real text span" $ do
+      let pic = M.renderWidget Nothing [safeWrap "hello"] (80, 24)
+      show pic `shouldContain` "hello"
 
 -- ---------------------------------------------------------------------------
 -- Helpers
@@ -83,6 +109,15 @@ mkState msgs = do
 
 t0 :: UTCTime
 t0 = UTCTime (fromGregorian 2026 5 29) 0
+
+-- | Force a real vty render of the given widget layers (into a fixed 80x24
+-- region) and return the rendered image height. 'M.renderWidget' builds the
+-- render state and runs every widget's deferred render action — so unlike
+-- @evaluate . length@, a bottom or empty-image bug in rendering is actually
+-- triggered here.
+renderHeight :: [Widget ResourceName] -> IO Int
+renderHeight ws =
+  evaluate (V.imageHeight (V.picImage (M.renderWidget Nothing ws (80, 24))))
 
 -- ---------------------------------------------------------------------------
 -- Generators

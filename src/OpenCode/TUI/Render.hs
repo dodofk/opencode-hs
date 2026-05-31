@@ -10,6 +10,8 @@ module OpenCode.TUI.Render
   , toolAttr
   , errorAttr
   , statusAttr
+    -- * Internals (exported for testing)
+  , safeWrap
   ) where
 
 import Brick
