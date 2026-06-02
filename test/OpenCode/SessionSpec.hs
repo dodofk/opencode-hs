@@ -165,6 +165,19 @@ spec = do
         stored <- DB.getMessages (envDb env) (sessionId session)
         length stored `shouldBe` 1
 
+    it "stops before the next round when envAbort is set during a tool round" $
+      withTestEnv $ \env session -> do
+        let path = "/tmp/m9-between-rounds.txt"
+        removeIfExists path
+        let streamer = abortAfterToolRound (envAbort env) path
+        result <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        case result of
+          Right msgs -> length msgs `shouldBe` 1   -- round 1 only; no recursion into round 2
+          Left err   -> expectationFailure (show err)
+        -- the tool DID run in round 1 (between-rounds abort only prevents the NEXT round)
+        exists <- doesFileExist path
+        exists `shouldBe` True
+
     it "abortSession sets the envAbort flag" $
       withTestEnv $ \env _session -> do
         before <- STM.readTVarIO (envAbort env)
@@ -237,6 +250,20 @@ removeIfExists :: FilePath -> IO ()
 removeIfExists p = do
   e <- doesFileExist p
   when e (removeFile p)
+
+-- | A streamer that emits a complete write_file tool round, then flips the
+-- abort flag AFTER the stream ends (before the next round would start). The
+-- stream itself completes un-aborted, so round 1's tool runs; the
+-- between-rounds abort check then stops the loop before round 2. The same
+-- streamer is returned on every call, but the abort check prevents a 2nd call.
+abortAfterToolRound :: STM.TVar Bool -> FilePath -> Streamer
+abortAfterToolRound abortVar path _req = do
+  Conduit.yield (ToolCallStart "c1" "write_file")
+  Conduit.yield (ToolCallArgDelta "c1"
+    (Text.pack ("{\"path\":\"" <> path <> "\",\"content\":\"y\"}")))
+  Conduit.yield (ToolCallEnd "c1")
+  Conduit.yield (StreamDone (Usage 1 1 Nothing Nothing))
+  liftIO (STM.atomically (STM.writeTVar abortVar True))
 
 -- ---------------------------------------------------------------------------
 -- Helper: env with an empty in-memory DB (no starter session)
