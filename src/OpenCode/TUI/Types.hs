@@ -10,13 +10,13 @@ module OpenCode.TUI.Types
   , SessionEvent (..)
   ) where
 
-import Brick.BChan (BChan)
 import Brick.Widgets.Edit (Editor)
 import Data.Sequence (Seq)
 import Data.Text (Text)
 
+import OpenCode.App.Types (AppEnv)
 import OpenCode.Session.Events (RunState (..), SessionEvent (..))
-import OpenCode.Types (Message)
+import OpenCode.Types (Message, SessionId)
 
 -- ---------------------------------------------------------------------------
 -- Resource names (used by brick to identify widgets / viewports)
@@ -32,14 +32,16 @@ data ResourceName
 -- App state
 -- ---------------------------------------------------------------------------
 
--- | The full UI state. In M8 (static layout) only 'asMessages', 'asInput',
--- 'asRunState', and 'asStatusLine' drive rendering. 'asEventChan' is carried
--- so M9 can pump 'SessionEvent's from the session loop without reshaping the
--- state.
+-- | The full UI state. M9 adds 'asPartialText' (the in-flight streaming
+-- buffer) and embeds 'asEnv'/'asSessionId' so the Enter/Esc handlers can fork
+-- the session loop and flip the abort flag. The event channel is reached via
+-- @envEventChan asEnv@.
 data AppState = AppState
-  { asMessages   :: Seq Message
-  , asInput      :: Editor Text ResourceName
-  , asRunState   :: RunState
-  , asStatusLine :: Text
-  , asEventChan  :: BChan SessionEvent
+  { asMessages    :: Seq Message
+  , asInput       :: Editor Text ResourceName
+  , asRunState    :: RunState
+  , asStatusLine  :: Text
+  , asPartialText :: Text
+  , asEnv         :: AppEnv
+  , asSessionId   :: SessionId
   }

@@ -25,7 +25,6 @@ import Brick
   , EventM
   )
 import Brick.AttrMap (AttrMap, attrMap)
-import Brick.BChan (BChan)
 import qualified Brick.Main as M
 import Brick.Util (fg, on)
 import qualified Brick.Widgets.Edit as E
@@ -39,6 +38,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (getCurrentTime)
 import qualified Graphics.Vty as V
+import Graphics.Vty.CrossPlatform (mkVty)
 import Lens.Micro (Lens')
 import Lens.Micro.Mtl (zoom)
 
@@ -71,8 +71,10 @@ import OpenCode.Types
 startTUI :: AppEnv -> Session -> IO ()
 startTUI env session = do
   msgs <- DB.getMessages (envDb env) (sessionId session)
-  let st0 = initialState (envEventChan env) session msgs
-  _ <- M.defaultMain app st0
+  let st0      = initialState env session msgs
+      buildVty = mkVty V.defaultConfig
+  initialVty <- buildVty
+  _ <- M.customMain initialVty buildVty (Just (envEventChan env)) app st0
   pure ()
 
 -- ---------------------------------------------------------------------------
@@ -125,14 +127,16 @@ chatScroll = M.viewportScroll ChatViewport
 -- State helpers
 -- ---------------------------------------------------------------------------
 
--- | Build the initial UI state from a session and its loaded history.
-initialState :: BChan SessionEvent -> Session -> [Message] -> AppState
-initialState chan session msgs = AppState
-  { asMessages   = Seq.fromList msgs
-  , asInput      = emptyEditor
-  , asRunState   = Idle
-  , asStatusLine = modelLabel (sessionModel session)
-  , asEventChan  = chan
+-- | Build the initial UI state from the environment, session, and history.
+initialState :: AppEnv -> Session -> [Message] -> AppState
+initialState env session msgs = AppState
+  { asMessages    = Seq.fromList msgs
+  , asInput       = emptyEditor
+  , asRunState    = Idle
+  , asStatusLine  = modelLabel (sessionModel session)
+  , asPartialText = ""
+  , asEnv         = env
+  , asSessionId   = sessionId session
   }
 
 emptyEditor :: E.Editor Text ResourceName

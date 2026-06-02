@@ -1,6 +1,5 @@
 module OpenCode.TUI.AppSpec (spec) where
 
-import qualified Brick.BChan as BChan
 import qualified Brick.Widgets.Edit as E
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Sequence as Seq
@@ -12,6 +11,7 @@ import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, ioProperty)
 
 import OpenCode.Session.Events (RunState (Idle))
+import OpenCode.TestEnv (newDummyEnv)
 import OpenCode.TUI.App
   ( appendUserMessage
   , applyEnter
@@ -97,8 +97,8 @@ spec = do
 
   describe "initialState" $ do
     it "loads the given history and starts Idle with an empty input" $ do
-      chan <- BChan.newBChan 10
-      let st = initialState chan sampleSession [userMsg, userMsg]
+      env <- newDummyEnv
+      let st = initialState env sampleSession [userMsg, userMsg]
       Seq.length (asMessages st) `shouldBe` 2
       asRunState st `shouldBe` Idle
       currentInput st `shouldBe` ""
@@ -113,13 +113,15 @@ ioProp = ioProperty
 
 stateWithInput :: Text -> IO AppState
 stateWithInput t = do
-  chan <- BChan.newBChan 10
+  env <- newDummyEnv
   pure AppState
-    { asMessages   = Seq.empty
-    , asInput      = E.editorText InputEditor (Just 1) t
-    , asRunState   = Idle
-    , asStatusLine = "openai:gpt-4o"
-    , asEventChan  = chan
+    { asMessages    = Seq.empty
+    , asInput       = E.editorText InputEditor (Just 1) t
+    , asRunState    = Idle
+    , asStatusLine  = "openai:gpt-4o"
+    , asPartialText = ""
+    , asEnv         = env
+    , asSessionId   = sessionId sampleSession
     }
 
 stateWithInput' :: String -> IO AppState

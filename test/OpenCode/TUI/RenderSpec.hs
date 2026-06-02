@@ -1,7 +1,6 @@
 module OpenCode.TUI.RenderSpec (spec) where
 
 import Brick (Widget)
-import qualified Brick.BChan as BChan
 import qualified Brick.Main as M
 import Brick.Widgets.Core (str)
 import qualified Brick.Widgets.Edit as E
@@ -27,13 +26,18 @@ import Test.QuickCheck
   )
 
 import OpenCode.Session.Events (RunState (Idle))
+import OpenCode.TestEnv (newDummyEnv)
 import OpenCode.TUI.Render (drawUI, safeWrap)
 import OpenCode.TUI.Types (AppState (..), ResourceName (InputEditor))
 import OpenCode.Types
   ( Message (..)
   , MessageId (..)
   , MessagePart (..)
+  , ModelId (..)
+  , ProviderId (..)
   , Role (..)
+  , Session (..)
+  , SessionId (..)
   , ToolArgs (..)
   , ToolCall (..)
   , ToolResult (..)
@@ -98,14 +102,24 @@ spec = do
 
 mkState :: [Message] -> IO AppState
 mkState msgs = do
-  chan <- BChan.newBChan 10
+  env <- newDummyEnv
   pure AppState
-    { asMessages   = Seq.fromList msgs
-    , asInput      = E.editorText InputEditor (Just 1) ""
-    , asRunState   = Idle
-    , asStatusLine = "openai:gpt-4o"
-    , asEventChan  = chan
+    { asMessages    = Seq.fromList msgs
+    , asInput       = E.editorText InputEditor (Just 1) ""
+    , asRunState    = Idle
+    , asStatusLine  = "openai:gpt-4o"
+    , asPartialText = ""
+    , asEnv         = env
+    , asSessionId   = sessionId sampleRenderSession
     }
+
+sampleRenderSession :: Session
+sampleRenderSession = Session
+  { sessionId      = SessionId "s-render"
+  , sessionTitle   = "untitled"
+  , sessionModel   = ModelId OpenAI "gpt-4o"
+  , sessionCreated = t0
+  }
 
 t0 :: UTCTime
 t0 = UTCTime (fromGregorian 2026 5 29) 0

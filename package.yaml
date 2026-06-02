@@ -53,6 +53,7 @@ dependencies:
   # TUI
   - brick >= 2.1
   - vty >= 6.1
+  - vty-crossplatform >= 0.4
   - microlens >= 0.4
   - microlens-mtl >= 0.2
   # UUID
