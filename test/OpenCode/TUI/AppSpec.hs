@@ -140,6 +140,7 @@ spec = do
     it "RunStateChanged RunningLLM keeps the partial buffer" $ do
       st0 <- stateWithInput ""
       let st2 = applyEvent (RunStateChanged RunningLLM) (applyEvent (PartialText "x") st0)
+      asRunState st2 `shouldBe` RunningLLM
       asPartialText st2 `shouldBe` "x"
 
     it "ErrorOccurred appends a synthetic error message" $ do
