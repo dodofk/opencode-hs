@@ -1,17 +1,21 @@
 module OpenCode.TUI.AppSpec (spec) where
 
 import qualified Brick.Widgets.Edit as E
+import Control.Concurrent (threadDelay)
+import Control.Concurrent.STM (atomically, readTVarIO, writeTVar)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (UTCTime (..), fromGregorian)
+import System.Environment (unsetEnv)
 import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, ioProperty)
 
+import OpenCode.App.Types (AppEnv (..))
 import OpenCode.Session.Events (RunState (..), SessionEvent (..))
-import OpenCode.TestEnv (newDummyEnv)
+import OpenCode.TestEnv (drainBChan, newDummyEnv, newDummyEnvNoKey)
 import OpenCode.TUI.App
   ( appendUserMessage
   , applyEnter
@@ -20,6 +24,7 @@ import OpenCode.TUI.App
   , initialState
   , modelLabel
   , shouldSubmit
+  , startRun
   )
 import OpenCode.TUI.Types (AppState (..), ResourceName (InputEditor))
 import OpenCode.Types
@@ -151,6 +156,25 @@ spec = do
         Just m  -> NE.toList (msgParts m) `shouldBe` [ErrorPart "boom"]
         Nothing -> expectationFailure "expected one message"
 
+  describe "startRun (forked agentic run)" $ do
+
+    it "resets the abort flag synchronously before forking" $ do
+      unsetEnv "OPENCODE_MOCK"
+      env <- newDummyEnvNoKey
+      atomically (writeTVar (envAbort env) True)
+      startRun env (SessionId "s-1") "hi"
+      threadDelay 100000              -- let the fork run and fail
+      readTVarIO (envAbort env) `shouldReturn` False
+
+    it "surfaces a missing-key error as ErrorOccurred then Idle" $ do
+      unsetEnv "OPENCODE_MOCK"
+      env <- newDummyEnvNoKey
+      startRun env (SessionId "s-1") "hi"
+      threadDelay 100000              -- let the fork run and fail
+      evts <- drainBChan (envEventChan env)
+      any isErrorEvt evts `shouldBe` True
+      lastMay evts `shouldBe` Just (RunStateChanged Idle)
+
 -- ---------------------------------------------------------------------------
 -- Helpers
 -- ---------------------------------------------------------------------------
@@ -196,3 +220,11 @@ sampleSession = Session
 
 t0 :: UTCTime
 t0 = UTCTime (fromGregorian 2026 5 29) 0
+
+isErrorEvt :: SessionEvent -> Bool
+isErrorEvt (ErrorOccurred _) = True
+isErrorEvt _                 = False
+
+lastMay :: [a] -> Maybe a
+lastMay [] = Nothing
+lastMay xs = Just (last xs)

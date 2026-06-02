@@ -1,11 +1,13 @@
 -- | Brick application definition, event handling, and TUI entry point.
 --
--- M8 wires a static layout: a scrollable chat history, a status bar, and an
--- input editor. Pressing Enter appends a placeholder user message (no LLM
--- call yet — that arrives in M9); Ctrl+C exits; PgUp / PgDn scroll history.
+-- M9 wires streaming and abort handlers: Enter (when Idle) forks the agentic
+-- loop via 'startRun'; Esc flips 'envAbort' for cooperative cancellation;
+-- 'AppEvent' delegations fold each 'SessionEvent' through 'applyEvent'.
+-- Ctrl+C exits; PgUp / PgDn scroll history.
 module OpenCode.TUI.App
   ( -- * Entry point
     startTUI
+  , startRun
     -- * Brick app (exported for testing)
   , app
   , handleEvent
@@ -22,13 +24,17 @@ module OpenCode.TUI.App
 
 import Brick
   ( App (..)
-  , BrickEvent (VtyEvent)
+  , BrickEvent (VtyEvent, AppEvent)
   , EventM
   )
 import Brick.AttrMap (AttrMap, attrMap)
+import qualified Brick.BChan as BChan
 import qualified Brick.Main as M
 import Brick.Util (fg, on)
 import qualified Brick.Widgets.Edit as E
+import Control.Concurrent.Async (async)
+import Control.Concurrent.STM (atomically, writeTVar)
+import Control.Exception (SomeException, displayException, try)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State.Class (get, put)
@@ -43,8 +49,10 @@ import Graphics.Vty.CrossPlatform (mkVty)
 import Lens.Micro (Lens')
 import Lens.Micro.Mtl (zoom)
 
+import OpenCode.App (runAppM)
 import OpenCode.App.Types (AppEnv (..))
 import qualified OpenCode.DB as DB
+import OpenCode.Session (processUserMessage)
 import OpenCode.Session.Events (RunState (..), SessionEvent (..))
 import OpenCode.TUI.Render
   ( assistantAttr
@@ -63,6 +71,7 @@ import OpenCode.Types
   , ProviderId (..)
   , Role (RoleUser, RoleAssistant)
   , Session (..)
+  , SessionId
   )
 
 -- ---------------------------------------------------------------------------
@@ -78,6 +87,25 @@ startTUI env session = do
   initialVty <- buildVty
   _ <- M.customMain initialVty buildVty (Just (envEventChan env)) app st0
   pure ()
+
+-- | Reset the abort flag (synchronously) and fork the agentic run for a user
+-- prompt. Any failure — typed 'AppError' or runtime exception — is surfaced as
+-- an 'ErrorOccurred' event, and the run state is always returned to 'Idle' so
+-- the input is re-enabled. The handle is discarded: abort is cooperative.
+startRun :: AppEnv -> SessionId -> Text -> IO ()
+startRun env sid prompt = do
+  atomically (writeTVar (envAbort env) False)
+  _ <- async $ do
+    outcome <- try (runAppM env (processUserMessage sid prompt))
+    case outcome of
+      Right (Right ()) -> pure ()                  -- success: loop already emitted Idle
+      Right (Left err) -> report (T.pack (show err))
+      Left ex          -> report (T.pack (displayException (ex :: SomeException)))
+  pure ()
+  where
+    report msg = do
+      BChan.writeBChan (envEventChan env) (ErrorOccurred msg)
+      BChan.writeBChan (envEventChan env) (RunStateChanged Idle)
 
 -- ---------------------------------------------------------------------------
 -- App definition
@@ -107,15 +135,22 @@ theMap = attrMap V.defAttr
 
 handleEvent :: BrickEvent ResourceName SessionEvent -> EventM ResourceName AppState ()
 handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
+handleEvent (VtyEvent (V.EvKey V.KEsc [])) = do
+  st <- get
+  liftIO (atomically (writeTVar (envAbort (asEnv st)) True))
 handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
   st <- get
   let body = currentInput st
-  when (shouldSubmit body) $ do
+  when (asRunState st == Idle && shouldSubmit body) $ do
     msg <- liftIO (mkUserMessage body)
     put (applyEnter msg st)
+    liftIO (startRun (asEnv st) (asSessionId st) body)
 handleEvent (VtyEvent (V.EvKey V.KPageUp   [])) = M.vScrollBy chatScroll (-pageStep)
 handleEvent (VtyEvent (V.EvKey V.KPageDown [])) = M.vScrollBy chatScroll pageStep
 handleEvent (VtyEvent ev) = zoom inputL (E.handleEditorEvent (VtyEvent ev))
+handleEvent (AppEvent ev) = do
+  st <- get
+  put (applyEvent ev st)
 handleEvent _ = pure ()
 
 -- | Lines scrolled per PgUp / PgDn.
