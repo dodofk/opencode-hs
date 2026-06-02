@@ -10,11 +10,12 @@ import Test.Hspec
 import Test.Hspec.QuickCheck (prop)
 import Test.QuickCheck (Property, ioProperty)
 
-import OpenCode.Session.Events (RunState (Idle))
+import OpenCode.Session.Events (RunState (..), SessionEvent (..))
 import OpenCode.TestEnv (newDummyEnv)
 import OpenCode.TUI.App
   ( appendUserMessage
   , applyEnter
+  , applyEvent
   , currentInput
   , initialState
   , modelLabel
@@ -24,12 +25,13 @@ import OpenCode.TUI.Types (AppState (..), ResourceName (InputEditor))
 import OpenCode.Types
   ( Message (..)
   , MessageId (..)
-  , MessagePart (TextPart)
+  , MessagePart (TextPart, ErrorPart)
   , ModelId (..)
   , ProviderId (..)
   , Role (RoleUser)
   , Session (..)
   , SessionId (..)
+  , msgParts
   )
 
 spec :: Spec
@@ -103,6 +105,50 @@ spec = do
       asRunState st `shouldBe` Idle
       currentInput st `shouldBe` ""
       asStatusLine st `shouldBe` "openai:gpt-4o"
+      asPartialText st `shouldBe` ""
+
+  describe "applyEvent (session-event reducer)" $ do
+
+    it "PartialText accumulates into asPartialText" $ do
+      st <- stateWithInput ""
+      let st' = applyEvent (PartialText "cd") (applyEvent (PartialText "ab") st)
+      asPartialText st' `shouldBe` "abcd"
+
+    it "MessageAppended appends the message and clears the partial buffer" $ do
+      st0 <- stateWithInput ""
+      let st1 = applyEvent (PartialText "draft") st0
+          st2 = applyEvent (MessageAppended userMsg) st1
+      Seq.length (asMessages st2) `shouldBe` 1
+      asPartialText st2 `shouldBe` ""
+
+    it "ToolStarted sets RunningTool" $ do
+      st <- stateWithInput ""
+      asRunState (applyEvent (ToolStarted "bash") st) `shouldBe` RunningTool "bash"
+
+    it "ToolFinished is a no-op" $ do
+      st <- stateWithInput ""
+      let st' = applyEvent (ToolFinished "bash" "out") st
+      asRunState st' `shouldBe` asRunState st
+      Seq.length (asMessages st') `shouldBe` Seq.length (asMessages st)
+
+    it "RunStateChanged Idle clears the partial buffer" $ do
+      st0 <- stateWithInput ""
+      let st2 = applyEvent (RunStateChanged Idle) (applyEvent (PartialText "x") st0)
+      asRunState st2 `shouldBe` Idle
+      asPartialText st2 `shouldBe` ""
+
+    it "RunStateChanged RunningLLM keeps the partial buffer" $ do
+      st0 <- stateWithInput ""
+      let st2 = applyEvent (RunStateChanged RunningLLM) (applyEvent (PartialText "x") st0)
+      asPartialText st2 `shouldBe` "x"
+
+    it "ErrorOccurred appends a synthetic error message" $ do
+      st <- stateWithInput ""
+      let st' = applyEvent (ErrorOccurred "boom") st
+      Seq.length (asMessages st') `shouldBe` 1
+      case Seq.lookup 0 (asMessages st') of
+        Just m  -> NE.toList (msgParts m) `shouldBe` [ErrorPart "boom"]
+        Nothing -> expectationFailure "expected one message"
 
 -- ---------------------------------------------------------------------------
 -- Helpers

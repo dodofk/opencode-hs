@@ -13,6 +13,7 @@ module OpenCode.TUI.App
   , initialState
   , appendUserMessage
   , applyEnter
+  , applyEvent
   , currentInput
   , inputContents
   , shouldSubmit
@@ -36,7 +37,7 @@ import Data.Sequence ((|>))
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Time (getCurrentTime)
+import Data.Time (UTCTime (..), fromGregorian, getCurrentTime)
 import qualified Graphics.Vty as V
 import Graphics.Vty.CrossPlatform (mkVty)
 import Lens.Micro (Lens')
@@ -44,7 +45,7 @@ import Lens.Micro.Mtl (zoom)
 
 import OpenCode.App.Types (AppEnv (..))
 import qualified OpenCode.DB as DB
-import OpenCode.Session.Events (RunState (Idle), SessionEvent)
+import OpenCode.Session.Events (RunState (..), SessionEvent (..))
 import OpenCode.TUI.Render
   ( assistantAttr
   , drawUI
@@ -56,10 +57,11 @@ import OpenCode.TUI.Render
 import OpenCode.TUI.Types (AppState (..), ResourceName (..))
 import OpenCode.Types
   ( Message (..)
-  , MessagePart (TextPart)
+  , MessageId (MessageId)
+  , MessagePart (TextPart, ErrorPart)
   , ModelId (..)
   , ProviderId (..)
-  , Role (RoleUser)
+  , Role (RoleUser, RoleAssistant)
   , Session (..)
   )
 
@@ -176,6 +178,30 @@ applyEnter :: Message -> AppState -> AppState
 applyEnter msg st
   | shouldSubmit (currentInput st) = appendUserMessage msg st
   | otherwise                      = st
+
+-- | Pure reducer: fold a 'SessionEvent' from the session loop into the UI
+-- state. Exported for testing. Never reads 'asEnv'/'asSessionId'.
+applyEvent :: SessionEvent -> AppState -> AppState
+applyEvent = \case
+  MessageAppended m -> \st -> st { asMessages = asMessages st |> m, asPartialText = "" }
+  PartialText t     -> \st -> st { asPartialText = asPartialText st <> t }
+  ToolStarted n     -> \st -> st { asRunState = RunningTool n }
+  ToolFinished _ _  -> id
+  RunStateChanged s -> \st -> st
+    { asRunState    = s
+    , asPartialText = if s == Idle then "" else asPartialText st
+    }
+  ErrorOccurred e   -> \st -> st { asMessages = asMessages st |> errorMessage e }
+
+-- | A transient, render-only assistant message carrying an error line. Not
+-- persisted, so a fixed synthetic id/timestamp is fine.
+errorMessage :: Text -> Message
+errorMessage e = Message
+  { msgId      = MessageId "error-synthetic"
+  , msgRole    = RoleAssistant
+  , msgParts   = ErrorPart e :| []
+  , msgCreated = UTCTime (fromGregorian 1970 1 1) 0
+  }
 
 -- | A human-readable @provider:model@ label for the status bar.
 modelLabel :: ModelId -> Text
