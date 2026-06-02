@@ -117,27 +117,41 @@ agentic streamer sid history = go 0 history []
           emitEvent (RunStateChanged RunningLLM)
           let req    = buildRequest env soFar
               stream = streamer req
-          events <- liftIO $ Conduit.runResourceT $ Conduit.runConduit $
-            stream .| Conduit.sinkList
-          mResult <- buildAssistantMessage events
-          case mResult of
-            Nothing -> do
-              emitEvent (RunStateChanged Idle)
-              pure (reverse appended)
-            Just (m, ranTool) -> do
-              conn <- asks envDb
-              liftIO (DB.insertMessage conn sid m)
-              emitEvent (MessageAppended m)
-              emitEvent (RunStateChanged Idle)
-              let nextHistory  = soFar ++ [m]
-                  nextAppended = m : appended
-              if ranTool
-                then do
-                  shouldAbort <- liftIO $ STM.readTVarIO (envAbort env)
-                  if shouldAbort
-                    then pure (reverse nextAppended)
-                    else go (roundNum + 1) nextHistory nextAppended
-                else pure (reverse nextAppended)
+          (events, aborted) <- liftIO $ Conduit.runResourceT $ Conduit.runConduit $
+            stream .| consumeStream (envEventChan env) (envAbort env)
+          if aborted
+            then do
+              mMsg <- buildTextOnlyMessage events
+              case mMsg of
+                Nothing -> do
+                  emitEvent (RunStateChanged Idle)
+                  pure (reverse appended)
+                Just m -> do
+                  conn <- asks envDb
+                  liftIO (DB.insertMessage conn sid m)
+                  emitEvent (MessageAppended m)
+                  emitEvent (RunStateChanged Idle)
+                  pure (reverse (m : appended))
+            else do
+              mResult <- buildAssistantMessage events
+              case mResult of
+                Nothing -> do
+                  emitEvent (RunStateChanged Idle)
+                  pure (reverse appended)
+                Just (m, ranTool) -> do
+                  conn <- asks envDb
+                  liftIO (DB.insertMessage conn sid m)
+                  emitEvent (MessageAppended m)
+                  emitEvent (RunStateChanged Idle)
+                  let nextHistory  = soFar ++ [m]
+                      nextAppended = m : appended
+                  if ranTool
+                    then do
+                      shouldAbort <- liftIO $ STM.readTVarIO (envAbort env)
+                      if shouldAbort
+                        then pure (reverse nextAppended)
+                        else go (roundNum + 1) nextHistory nextAppended
+                    else pure (reverse nextAppended)
 
 buildRequest :: AppEnv -> [Message] -> LLMRequest
 buildRequest env history = LLMRequest
@@ -174,6 +188,47 @@ buildAssistantMessage events = do
             }
         , ranTool
         )
+
+-- | Stream sink: emit 'PartialText' for each 'TextDelta', accumulate every
+-- event, and stop pulling as soon as 'envAbort' is observed (returning
+-- @aborted = True@). Stopping lets 'runResourceT' finalize the HTTP conduit and
+-- close the connection — cooperative abort. Runs in @ResourceT IO@, so it
+-- writes the channel directly rather than via 'emitEvent' (which is 'AppM').
+consumeStream
+  :: BChan.BChan SessionEvent
+  -> STM.TVar Bool
+  -> Conduit.ConduitT StreamEvent o (Conduit.ResourceT IO) ([StreamEvent], Bool)
+consumeStream chan abortVar = loop []
+  where
+    loop acc = do
+      mEvt <- Conduit.await
+      case mEvt of
+        Nothing  -> pure (reverse acc, False)
+        Just evt -> do
+          case evt of
+            TextDelta t -> liftIO (BChan.writeBChan chan (PartialText t))
+            _           -> pure ()
+          aborted <- liftIO (STM.readTVarIO abortVar)
+          if aborted
+            then pure (reverse (evt : acc), True)
+            else loop (evt : acc)
+
+-- | Build an assistant message from the text deltas only, ignoring any tool
+-- calls. Used on the abort path so a cancelled run never executes a tool that
+-- happened to fully stream in. 'Nothing' when no text was produced.
+buildTextOnlyMessage :: [StreamEvent] -> AppM (Maybe Message)
+buildTextOnlyMessage events =
+  case NE.nonEmpty (collectText events) of
+    Nothing -> pure Nothing
+    Just ne -> do
+      mid <- liftIO DB.newMessageId
+      now <- liftIO getCurrentTime
+      pure $ Just Message
+        { msgId      = mid
+        , msgRole    = RoleAssistant
+        , msgParts   = ne
+        , msgCreated = now
+        }
 
 -- | Pair each completed tool call with the result of executing it.
 -- Emits 'ToolStarted'/'ToolFinished' SessionEvents around the execution.

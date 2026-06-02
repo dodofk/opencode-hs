@@ -3,9 +3,13 @@ module OpenCode.SessionSpec (spec) where
 import qualified Brick.BChan as BChan
 import Control.Exception (bracket)
 import qualified Control.Concurrent.STM as STM
+import Control.Monad (when)
 import Control.Monad.Except (runExceptT)
+import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (runReaderT)
+import qualified Conduit
 import Database.SQLite.Simple (close)
+import System.Directory (doesFileExist, removeFile)
 import Test.Hspec
 import qualified Data.List.NonEmpty as NE
 
@@ -14,8 +18,10 @@ import OpenCode.Config (Config (..), ProviderConfig (..))
 import qualified OpenCode.DB as DB
 import OpenCode.DB (openDb)
 import OpenCode.LLM.Mock (staticStreamer, newScriptedStreamer)
+import OpenCode.LLM.Types (Streamer)
 import OpenCode.Session (agentic, createSession, loadSession, abortSession, processUserMessage, processUserMessageWith)
-import OpenCode.TestEnv (withTestEnv)
+import OpenCode.Session.Events (SessionEvent (..))
+import OpenCode.TestEnv (withTestEnv, drainBChan)
 import OpenCode.Tool.Registry (defaultBuiltinRegistry)
 import qualified Data.Text as Text
 import OpenCode.Types
@@ -95,6 +101,18 @@ spec = do
         length stored `shouldBe` 1
         msgRole (head stored) `shouldBe` RoleAssistant
 
+  describe "agentic (streaming)" $ do
+
+    it "emits PartialText for each TextDelta during the stream" $
+      withTestEnv $ \env session -> do
+        let streamer = staticStreamer
+              [ TextDelta "Hel", TextDelta "lo"
+              , StreamDone (Usage 1 1 Nothing Nothing)
+              ]
+        _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        evts <- drainBChan (envEventChan env)
+        [t | PartialText t <- evts] `shouldBe` ["Hel", "lo"]
+
   describe "agentic (with tool execution, multi-round)" $ do
 
     it "executes a tool call and recurses for the next round" $
@@ -129,30 +147,23 @@ spec = do
 
   describe "agentic (abort)" $ do
 
-    it "stops after the current round when envAbort is set" $
+    it "aborts mid-stream into a text-only message, skipping a fully-arrived tool call" $
       withTestEnv $ \env session -> do
-        -- Set the abort flag BEFORE invoking agentic.
-        STM.atomically $ STM.writeTVar (envAbort env) True
-        -- Script two rounds: round 1 has a tool call (would normally trigger
-        -- recursion); round 2 has text. With abort set, round 2 must not run.
-        let round1 =
-              [ ToolCallStart "c1" "write_file"
-              , ToolCallArgDelta "c1" "{\"path\":\"/tmp/m6-abort.txt\",\"content\":\"a\"}"
-              , ToolCallEnd "c1"
-              , StreamDone (Usage 10 5 Nothing Nothing)
-              ]
-            round2 =
-              [ TextDelta "should not appear"
-              , StreamDone (Usage 1 1 Nothing Nothing)
-              ]
-        streamer <- newScriptedStreamer [round1, round2]
-        result <- runExceptT $ runReaderT
-          (agentic streamer (sessionId session) []) env
+        let path = "/tmp/m9-abort-skip.txt"
+        removeIfExists path
+        let streamer = abortingAfterToolCall (envAbort env) path
+        result <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
         case result of
-          Right msgs ->
-            -- Only round 1's assistant message should be present.
+          Right msgs -> do
             length msgs `shouldBe` 1
+            NE.toList (msgParts (head msgs)) `shouldBe` [TextPart "after"]
           Left err -> expectationFailure (show err)
+        -- the write_file tool must NOT have run
+        exists <- doesFileExist path
+        exists `shouldBe` False
+        -- the text-only message was persisted
+        stored <- DB.getMessages (envDb env) (sessionId session)
+        length stored `shouldBe` 1
 
     it "abortSession sets the envAbort flag" $
       withTestEnv $ \env _session -> do
@@ -207,6 +218,25 @@ spec = do
     isToolCall _                    = False
     isToolResult (ToolResultPart _) = True
     isToolResult _                  = False
+
+-- | A streamer that fully emits a write_file tool call, THEN flips the abort
+-- flag, THEN emits one text delta. The fold processes the text delta, observes
+-- the abort, and stops — so the (complete) tool call sits in the aborted prefix
+-- and must be skipped by the text-only finalize path.
+abortingAfterToolCall :: STM.TVar Bool -> FilePath -> Streamer
+abortingAfterToolCall abortVar path _req = do
+  Conduit.yield (ToolCallStart "c1" "write_file")
+  Conduit.yield (ToolCallArgDelta "c1"
+    (Text.pack ("{\"path\":\"" <> path <> "\",\"content\":\"x\"}")))
+  Conduit.yield (ToolCallEnd "c1")
+  liftIO (STM.atomically (STM.writeTVar abortVar True))
+  Conduit.yield (TextDelta "after")
+  Conduit.yield (StreamDone (Usage 1 1 Nothing Nothing))
+
+removeIfExists :: FilePath -> IO ()
+removeIfExists p = do
+  e <- doesFileExist p
+  when e (removeFile p)
 
 -- ---------------------------------------------------------------------------
 -- Helper: env with an empty in-memory DB (no starter session)
