@@ -1,6 +1,6 @@
 module Main (main) where
 
-import OpenCode.App (runApp)
+import OpenCode.Run (runApp)
 import OpenCode.Tool.Registry (defaultBuiltinRegistry)
 
 main :: IO ()

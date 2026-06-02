@@ -79,6 +79,7 @@ library:
   source-dirs: src
   exposed-modules:
     - OpenCode.App
+    - OpenCode.Run
     - OpenCode.App.Error
     - OpenCode.App.Types
     - OpenCode.Config
