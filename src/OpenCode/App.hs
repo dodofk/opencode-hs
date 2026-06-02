@@ -1,8 +1,8 @@
--- | Application monad, environment, and top-level entry point.
--- This module re-exports the leaf types from 'OpenCode.App.Error' and
--- 'OpenCode.App.Types' so consumers can keep using 'OpenCode.App' as a
--- single entry point, while the leaf modules remain dependency-free of
--- 'OpenCode.Tool.*'.
+-- | Application monad and environment. Re-exports the leaf types from
+-- 'OpenCode.App.Error' and 'OpenCode.App.Types' so consumers can use
+-- 'OpenCode.App' as a single import for the monad stack, while the leaf
+-- modules remain dependency-free of 'OpenCode.Tool.*'. The top-level entry
+-- point ('runApp') lives in 'OpenCode.Run'.
 module OpenCode.App
   ( -- * Re-exports
     AppM
