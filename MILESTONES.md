@@ -17,7 +17,7 @@ Acceptance for each is one or more concrete shell commands plus expected outcome
 | M6  | Session Loop                           | done      | `4d0d2ba..`        |
 | M7  | Tool System: execution + search        | done      | `1e0425d..`        |
 | M8  | TUI: static layout                     | done      | `see M8 PR`        |
-| M9  | TUI: streaming + tool inline + abort   | pending   | —                  |
+| M9  | TUI: streaming + tool inline + abort   | done      | `see M9 PR`        |
 | M10 | CLI commands                           | pending   | —                  |
 | M11 | Anthropic provider                     | pending   | —                  |
 | M12 | Hardening                              | pending   | —                  |
@@ -296,7 +296,20 @@ Outcome: `OpenCode.TUI.Types` (`ResourceName`, `AppState`), `OpenCode.TUI.Render
 
 ---
 
-## M9 — TUI: streaming + tool inline + abort
+## M9 — TUI: streaming + tool inline + abort — DONE
+
+Outcome: `agentic` now consumes the stream with a per-event fold
+(`consumeStream`) that emits `PartialText` deltas onto `envEventChan` and
+checks `envAbort` after each event; on abort it finalizes a text-only message
+via `buildTextOnlyMessage`, skipping any fully-arrived tool call. A new
+top-level `OpenCode.Run` module breaks the `App`↔`TUI` import cycle so the TUI
+calls `processUserMessage` directly. `AppState` gained
+`asPartialText`/`asEnv`/`asSessionId`; a pure `applyEvent` reducer folds each
+`SessionEvent`; `handleEvent` forks runs with `startRun` (Enter, Idle only),
+aborts on `Esc`, and reduces `AppEvent`s; `startTUI` runs via `customMain` fed
+`envEventChan` (no pump thread). The chat viewport renders the in-flight
+partial as a dim trailing message. `delayedStreamer` + `OPENCODE_MOCK=1` enable
+keyless manual testing. Errors surface via `displayAppError` as a red line.
 
 **Goal**: Layer live streaming, inline tool execution rendering, and mid-stream abort on top of M8's static TUI.
 
