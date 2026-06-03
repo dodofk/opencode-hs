@@ -50,6 +50,7 @@ import Lens.Micro (Lens')
 import Lens.Micro.Mtl (zoom)
 
 import OpenCode.App (runAppM)
+import OpenCode.App.Error (displayAppError)
 import OpenCode.App.Types (AppEnv (..))
 import qualified OpenCode.DB as DB
 import OpenCode.Session (processUserMessage)
@@ -91,7 +92,8 @@ startTUI env session = do
 -- | Reset the abort flag (synchronously) and fork the agentic run for a user
 -- prompt. Any failure — typed 'AppError' or runtime exception — is surfaced as
 -- an 'ErrorOccurred' event, and the run state is always returned to 'Idle' so
--- the input is re-enabled. The handle is discarded: abort is cooperative.
+-- the input is re-enabled. The handle is discarded: abort is cooperative
+-- (hard cancellation is deferred to M12).
 startRun :: AppEnv -> SessionId -> Text -> IO ()
 startRun env sid prompt = do
   atomically (writeTVar (envAbort env) False)
@@ -99,7 +101,7 @@ startRun env sid prompt = do
     outcome <- try (runAppM env (processUserMessage sid prompt))
     case outcome of
       Right (Right ()) -> pure ()                  -- success: loop already emitted Idle
-      Right (Left err) -> report (T.pack (show err))
+      Right (Left err) -> report (displayAppError err)
       Left ex          -> report (T.pack (displayException (ex :: SomeException)))
   pure ()
   where
