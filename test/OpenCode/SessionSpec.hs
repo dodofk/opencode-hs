@@ -20,7 +20,7 @@ import OpenCode.DB (openDb)
 import OpenCode.LLM.Mock (staticStreamer, newScriptedStreamer)
 import OpenCode.LLM.Types (Streamer)
 import OpenCode.Session (agentic, createSession, loadSession, abortSession, processUserMessage, processUserMessageWith)
-import OpenCode.Session.Events (SessionEvent (..))
+import OpenCode.Session.Events (RunState (..), SessionEvent (..))
 import OpenCode.TestEnv (withTestEnv, drainBChan)
 import OpenCode.Tool.Registry (defaultBuiltinRegistry)
 import qualified Data.Text as Text
@@ -112,6 +112,28 @@ spec = do
         _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
         evts <- drainBChan (envEventChan env)
         [t | PartialText t <- evts] `shouldBe` ["Hel", "lo"]
+
+  describe "agentic (error surfacing)" $ do
+
+    it "surfaces a provider StreamError as an ErrorOccurred event, then Idle" $
+      withTestEnv $ \env session -> do
+        -- An HTTP 4xx/5xx from the provider arrives as stream data, not an
+        -- exception; the loop must not swallow it into a silent empty round.
+        let streamer = staticStreamer [StreamError "minimax: 429: rate limited"]
+        _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        evts <- drainBChan (envEventChan env)
+        [m | ErrorOccurred m <- evts] `shouldBe` ["minimax: 429: rate limited"]
+        [s | RunStateChanged s <- evts] `shouldSatisfy` endsWith Idle
+
+    it "surfaces an empty first-round response as an ErrorOccurred event" $
+      withTestEnv $ \env session -> do
+        -- 200 OK but no text and no tool call (e.g. a reasoning model that
+        -- streamed only thinking) must not look like a frozen no-response.
+        let streamer = staticStreamer [StreamDone (Usage 0 0 Nothing Nothing)]
+        _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        evts <- drainBChan (envEventChan env)
+        length [() | ErrorOccurred _ <- evts] `shouldBe` 1
+        [s | RunStateChanged s <- evts] `shouldSatisfy` endsWith Idle
 
   describe "agentic (with tool execution, multi-round)" $ do
 
@@ -250,6 +272,10 @@ removeIfExists :: FilePath -> IO ()
 removeIfExists p = do
   e <- doesFileExist p
   when e (removeFile p)
+
+-- | True when the list is non-empty and its last element equals the given one.
+endsWith :: Eq a => a -> [a] -> Bool
+endsWith x xs = not (null xs) && last xs == x
 
 -- | A streamer that emits a complete write_file tool round, then flips the
 -- abort flag AFTER the stream ends (before the next round would start). The

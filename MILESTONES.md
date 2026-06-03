@@ -311,7 +311,10 @@ aborts on `Esc`, and reduces `AppEvent`s; `startTUI` runs via `customMain` fed
 partial as a dim trailing message and auto-scrolls to follow new output as it
 streams (`vScrollToEnd` on each `AppEvent`); ↑/↓ scroll a line and PgUp/PgDn a
 page for manual review. `delayedStreamer` + `OPENCODE_MOCK=1` enable
-keyless manual testing. Errors surface via `displayAppError` as a red line.
+keyless manual testing. Errors always surface as a red line: typed failures via
+`displayAppError`, provider `StreamError`s (HTTP 4xx/5xx) and empty/reasoning-only
+responses via `ErrorOccurred` from the agentic loop — so a non-response is never
+silent.
 
 **Goal**: Layer live streaming, inline tool execution rendering, and mid-stream abort on top of M8's static TUI.
 

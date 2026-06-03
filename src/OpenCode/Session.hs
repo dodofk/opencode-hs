@@ -21,6 +21,7 @@ module OpenCode.Session
 import qualified Brick.BChan as BChan
 import Conduit ((.|))
 import qualified Conduit
+import Control.Monad (when)
 import Control.Monad.Except (catchError, throwError)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ask, asks)
@@ -137,9 +138,19 @@ agentic streamer sid history = go 0 history []
                   emitEvent (RunStateChanged Idle)
                   pure (reverse (m : appended))
             else do
+              -- A provider HTTP error arrives as a StreamError *event*, not an
+              -- exception; surface each one so a failed round is visible rather
+              -- than a silent flip back to idle.
+              let errs = collectErrors events
+              mapM_ (emitEvent . ErrorOccurred) errs
               mResult <- buildAssistantMessage events
               case mResult of
                 Nothing -> do
+                  -- No text, no tool call, and no error: e.g. a 200 with empty
+                  -- content (a reasoning model that streamed only thinking).
+                  -- Say so on the first round instead of looking frozen.
+                  when (roundNum == 0 && null errs) $
+                    emitEvent (ErrorOccurred emptyResponseMessage)
                   emitEvent (RunStateChanged Idle)
                   pure (reverse appended)
                 Just (m, ranTool) -> do
@@ -302,6 +313,18 @@ collectText :: [StreamEvent] -> [MessagePart]
 collectText events =
   [TextPart (Text.concat chunks) | not (null chunks)]
   where chunks = [t | TextDelta t <- events]
+
+-- | Extract the messages of any 'StreamError' events. A provider HTTP error
+-- (4xx/5xx) is delivered as stream data, not an exception, so the loop must
+-- inspect for it explicitly — otherwise an errored round looks like an empty,
+-- silent non-response.
+collectErrors :: [StreamEvent] -> [Text]
+collectErrors events = [e | StreamError e <- events]
+
+-- | Surfaced when the first round produces no text, no tool call, and no error.
+emptyResponseMessage :: Text
+emptyResponseMessage =
+  "the model returned an empty response (no text or tool call)"
 
 -- ---------------------------------------------------------------------------
 -- Top-level entry points
