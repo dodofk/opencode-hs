@@ -25,8 +25,10 @@ import Control.Monad.Except (catchError, throwError)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ask, asks)
 import qualified OpenCode.Config as Config
+import qualified OpenCode.LLM.Mock as Mock
 import qualified OpenCode.LLM.OpenAI as OpenAI
 import qualified Control.Concurrent.STM as STM
+import System.Environment (lookupEnv)
 import qualified Data.Aeson as Aeson
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
@@ -53,6 +55,7 @@ import OpenCode.Types
   , ToolArgs (..)
   , ToolCall (..)
   , ToolResult (..)
+  , Usage (..)
   )
 
 -- ---------------------------------------------------------------------------
@@ -304,17 +307,34 @@ collectText events =
 -- ---------------------------------------------------------------------------
 
 -- | Process a user prompt: persist a user 'Message', run one agentic loop,
--- and return. Production uses OpenAI streaming (hardcoded for M6; M11 will
--- dispatch by provider).
+-- and return. When @OPENCODE_MOCK=1@ is set, use a delay-paced canned reply
+-- for keyless manual testing; otherwise use the OpenAI streaming path.
 processUserMessage :: SessionId -> Text -> AppM ()
 processUserMessage sid prompt = do
-  cfg <- asks envConfig
-  case Config.openaiKey (Config.providers cfg) of
-    Nothing  -> throwError (LLMError "no OpenAI API key configured")
-    Just key -> do
-      let provider = OpenAI.defaultOpenAI key
-          streamer  = OpenAI.streamOpenAI provider
-      processUserMessageWith streamer sid prompt
+  mock <- liftIO (lookupEnv "OPENCODE_MOCK")
+  case mock of
+    Just "1" ->
+      processUserMessageWith (Mock.delayedStreamer mockChunkDelayUs mockReply) sid prompt
+    _ -> do
+      cfg <- asks envConfig
+      case Config.openaiKey (Config.providers cfg) of
+        Nothing  -> throwError (LLMError "no OpenAI API key configured")
+        Just key ->
+          processUserMessageWith (OpenAI.streamOpenAI (OpenAI.defaultOpenAI key)) sid prompt
+
+-- | Microseconds between mock chunks; tuned so the whole reply takes a few
+-- seconds — long enough to watch streaming and test Esc by hand.
+mockChunkDelayUs :: Int
+mockChunkDelayUs = 700000
+
+-- | The canned reply emitted under OPENCODE_MOCK=1.
+mockReply :: [StreamEvent]
+mockReply =
+  [ TextDelta "This ", TextDelta "is ", TextDelta "a ", TextDelta "mock "
+  , TextDelta "streamed ", TextDelta "reply ", TextDelta "for ", TextDelta "manual "
+  , TextDelta "testing."
+  , StreamDone (Usage 0 0 Nothing Nothing)
+  ]
 
 -- | Streamer-parameterized variant of 'processUserMessage'. Exposed for
 -- tests that inject a mock 'Streamer'. Production callers use the

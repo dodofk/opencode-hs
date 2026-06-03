@@ -4,9 +4,11 @@ module OpenCode.LLM.Mock
   , staticStreamer
   , scriptedStreamer
   , newScriptedStreamer
+  , delayedStreamer
   ) where
 
-import Conduit (ConduitT, yieldMany)
+import Conduit (ConduitT, yield, yieldMany)
+import Control.Concurrent (threadDelay)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Resource (ResourceT)
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
@@ -44,3 +46,15 @@ newScriptedStreamer :: [[StreamEvent]] -> IO Streamer
 newScriptedStreamer rounds = do
   ref <- newIORef rounds
   pure (scriptedStreamer ref)
+
+-- | A 'Streamer' that yields each scripted event with @delayUs@ microseconds
+-- between emissions. Used for manual TUI testing without API keys: the delay
+-- makes streaming visible to a human. Tests pass @0@.
+delayedStreamer :: Int -> [StreamEvent] -> Streamer
+delayedStreamer delayUs evts _req = go evts
+  where
+    go []       = pure ()
+    go (e:rest) = do
+      yield e
+      liftIO (threadDelay delayUs)
+      go rest
