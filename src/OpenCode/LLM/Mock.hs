@@ -54,6 +54,7 @@ delayedStreamer :: Int -> [StreamEvent] -> Streamer
 delayedStreamer delayUs evts _req = go evts
   where
     go []       = pure ()
+    go [e]      = yield e                       -- last event: no trailing delay
     go (e:rest) = do
       yield e
       liftIO (threadDelay delayUs)
