@@ -308,7 +308,9 @@ calls `processUserMessage` directly. `AppState` gained
 `SessionEvent`; `handleEvent` forks runs with `startRun` (Enter, Idle only),
 aborts on `Esc`, and reduces `AppEvent`s; `startTUI` runs via `customMain` fed
 `envEventChan` (no pump thread). The chat viewport renders the in-flight
-partial as a dim trailing message. `delayedStreamer` + `OPENCODE_MOCK=1` enable
+partial as a dim trailing message and auto-scrolls to follow new output as it
+streams (`vScrollToEnd` on each `AppEvent`); ↑/↓ scroll a line and PgUp/PgDn a
+page for manual review. `delayedStreamer` + `OPENCODE_MOCK=1` enable
 keyless manual testing. Errors surface via `displayAppError` as a red line.
 
 **Goal**: Layer live streaming, inline tool execution rendering, and mid-stream abort on top of M8's static TUI.

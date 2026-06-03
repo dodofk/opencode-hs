@@ -3,7 +3,8 @@
 -- M9 wires streaming and abort handlers: Enter (when Idle) forks the agentic
 -- loop via 'startRun'; Esc flips 'envAbort' for cooperative cancellation;
 -- 'AppEvent' delegations fold each 'SessionEvent' through 'applyEvent'.
--- Ctrl+C exits; PgUp / PgDn scroll history.
+-- Ctrl+C exits; ↑/↓ scroll the chat a line, PgUp/PgDn a page, and the chat
+-- auto-scrolls to the newest output as it streams in.
 module OpenCode.TUI.App
   ( -- * Entry point
     startTUI
@@ -152,13 +153,23 @@ handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
     -- RunStateChanged event arrives; also gives instant status feedback.
     put ((applyEnter msg st) { asRunState = RunningLLM })
     liftIO (startRun (asEnv st) (asSessionId st) body)
+    M.vScrollToEnd chatScroll          -- show the just-sent message
+handleEvent (VtyEvent (V.EvKey V.KUp       [])) = M.vScrollBy chatScroll (-lineStep)
+handleEvent (VtyEvent (V.EvKey V.KDown     [])) = M.vScrollBy chatScroll lineStep
 handleEvent (VtyEvent (V.EvKey V.KPageUp   [])) = M.vScrollBy chatScroll (-pageStep)
 handleEvent (VtyEvent (V.EvKey V.KPageDown [])) = M.vScrollBy chatScroll pageStep
 handleEvent (VtyEvent ev) = zoom inputL (E.handleEditorEvent (VtyEvent ev))
 handleEvent (AppEvent ev) = do
   st <- get
   put (applyEvent ev st)
+  -- Follow the newest output as it streams in (token, tool result, or appended
+  -- message). Manual ↑/↓/PgUp/PgDn still work between events and once idle.
+  M.vScrollToEnd chatScroll
 handleEvent _ = pure ()
+
+-- | Lines scrolled per ↑ / ↓ keypress.
+lineStep :: Int
+lineStep = 1
 
 -- | Lines scrolled per PgUp / PgDn.
 pageStep :: Int
