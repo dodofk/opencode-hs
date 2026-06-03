@@ -1,7 +1,9 @@
 -- | Brick draw functions: convert 'AppState' into a list of widgets.
 --
--- M8 renders a static view: the chat history in a scrollable viewport, a
--- status bar, and the input editor. No live streaming — that arrives in M9.
+-- Renders the chat history in a scrollable viewport, a status bar, and the
+-- input editor. While a run is active ('asRunState' /= 'Idle') and
+-- 'asPartialText' is non-empty, appends a dim in-flight assistant message at
+-- the bottom of the chat (M9).
 module OpenCode.TUI.Render
   ( drawUI
     -- * Attribute names (consumed by the App's attr map)

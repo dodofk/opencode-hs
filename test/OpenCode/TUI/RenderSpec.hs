@@ -102,7 +102,7 @@ spec = do
       st0 <- mkState []
       let st  = st0 { asRunState = RunningLLM, asPartialText = "streaming now" }
           pic = M.renderWidget Nothing (drawUI st) (80, 24)
-      show pic `shouldContain` "streaming"
+      show pic `shouldContain` "streaming now"
 
     it "hides the partial text when Idle" $ do
       st0 <- mkState []
