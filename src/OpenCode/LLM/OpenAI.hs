@@ -3,6 +3,7 @@ module OpenCode.LLM.OpenAI
   ( -- * Provider
     OpenAIProvider (..)
   , defaultOpenAI
+  , minimaxOpenAI
     -- * Wire types (internal — exposed for tests)
   , ChatCompletionChunk (..)
   , Choice (..)
@@ -254,6 +255,15 @@ defaultOpenAI :: ApiKey -> OpenAIProvider
 defaultOpenAI key = OpenAIProvider
   { apiKey  = key
   , baseUrl = "https://api.openai.com"
+  }
+
+-- | Provider pointing at MiniMax's OpenAI-compatible endpoint. MiniMax speaks
+-- the same @/v1/chat/completions@ wire format (Bearer auth, SSE chunks), so it
+-- reuses 'streamOpenAI' wholesale and differs only in base URL.
+minimaxOpenAI :: ApiKey -> OpenAIProvider
+minimaxOpenAI key = OpenAIProvider
+  { apiKey  = key
+  , baseUrl = "https://api.minimax.io"
   }
 
 -- ---------------------------------------------------------------------------

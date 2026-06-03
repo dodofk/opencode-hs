@@ -34,6 +34,7 @@ main = do
         { providers    = ProviderConfig
             { openaiKey    = Just (ApiKey "sk-test-stub")
             , anthropicKey = Nothing
+            , minimaxKey   = Nothing
             }
         , defaultModel = ModelId OpenAI "gpt-4o"
         }

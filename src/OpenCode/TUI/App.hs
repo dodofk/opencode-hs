@@ -253,6 +253,7 @@ providerLabel :: ProviderId -> Text
 providerLabel = \case
   OpenAI    -> "openai"
   Anthropic -> "anthropic"
+  MiniMax   -> "minimax"
 
 -- ---------------------------------------------------------------------------
 -- Internals

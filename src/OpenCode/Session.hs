@@ -47,7 +47,8 @@ import OpenCode.Tool.Types (ToolRegistry (..), someToolDefinition)
 import OpenCode.Types
   ( Message (..)
   , MessagePart (..)
-  , ModelId
+  , ModelId (..)
+  , ProviderId (..)
   , Role (..)
   , Session (..)
   , SessionId
@@ -158,7 +159,7 @@ agentic streamer sid history = go 0 history []
 
 buildRequest :: AppEnv -> [Message] -> LLMRequest
 buildRequest env history = LLMRequest
-  { reqModel        = "gpt-4o"
+  { reqModel        = model (Config.defaultModel (envConfig env))
   , reqMessages     = history
   , reqTools        = map someToolDefinition (Map.elems (unRegistry (envRegistry env)))
   , reqSystemPrompt = systemPrompt (envRegistry env)
@@ -308,7 +309,8 @@ collectText events =
 
 -- | Process a user prompt: persist a user 'Message', run one agentic loop,
 -- and return. When @OPENCODE_MOCK=1@ is set, use a delay-paced canned reply
--- for keyless manual testing; otherwise use the OpenAI streaming path.
+-- for keyless manual testing; otherwise select a streamer for the configured
+-- default model's provider (see 'selectStreamer').
 processUserMessage :: SessionId -> Text -> AppM ()
 processUserMessage sid prompt = do
   mock <- liftIO (lookupEnv "OPENCODE_MOCK")
@@ -316,11 +318,27 @@ processUserMessage sid prompt = do
     Just "1" ->
       processUserMessageWith (Mock.delayedStreamer mockChunkDelayUs mockReply) sid prompt
     _ -> do
-      cfg <- asks envConfig
-      case Config.openaiKey (Config.providers cfg) of
-        Nothing  -> throwError (LLMError "no OpenAI API key configured")
-        Just key ->
-          processUserMessageWith (OpenAI.streamOpenAI (OpenAI.defaultOpenAI key)) sid prompt
+      cfg      <- asks envConfig
+      streamer <- either throwError pure (selectStreamer cfg)
+      processUserMessageWith streamer sid prompt
+
+-- | Pick a streaming provider for the configured default model. MiniMax and
+-- OpenAI share the OpenAI-compatible wire format and differ only in base URL,
+-- so both go through 'OpenAI.streamOpenAI'; they are distinguished by the
+-- default model's provider id. The Anthropic streaming path is not yet
+-- implemented.
+selectStreamer :: Config.Config -> Either AppError Streamer
+selectStreamer cfg =
+  case provider (Config.defaultModel cfg) of
+    OpenAI    -> withKey (Config.openaiKey  pc) "OpenAI"  OpenAI.defaultOpenAI
+    MiniMax   -> withKey (Config.minimaxKey pc) "MiniMax" OpenAI.minimaxOpenAI
+    Anthropic -> Left (LLMError
+      "Anthropic streaming is not yet implemented; configure a MiniMax or OpenAI model")
+  where
+    pc = Config.providers cfg
+    withKey mKey label mkProvider = case mKey of
+      Nothing  -> Left (LLMError ("no " <> label <> " API key configured"))
+      Just key -> Right (OpenAI.streamOpenAI (mkProvider key))
 
 -- | Microseconds between mock chunks; tuned so the whole reply takes a few
 -- seconds — long enough to watch streaming and test Esc by hand.

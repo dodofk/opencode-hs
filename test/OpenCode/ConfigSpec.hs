@@ -67,6 +67,37 @@ spec = do
           model    (defaultModel c) `shouldBe` "gpt-4o"
           provider (defaultModel c) `shouldBe` OpenAI
 
+    it "MINIMAX_API_KEY env var satisfies a missing YAML key" $
+      buildConfig emptyConfigFile (minimaxEnv "mk-env")
+        `shouldSatisfy` isRight
+
+    it "reads the MiniMax key from YAML" $
+      case buildConfig (cfWithMiniMax "mk-yaml") noEnv of
+        Left  err -> expectationFailure (show err)
+        Right c   -> minimaxKey (providers c) `shouldBe` Just (ApiKey "mk-yaml")
+
+    it "MINIMAX_API_KEY env var takes priority over YAML key" $
+      case buildConfig (cfWithMiniMax "mk-yaml") (minimaxEnv "mk-env") of
+        Left  err -> expectationFailure (show err)
+        Right c   -> minimaxKey (providers c) `shouldBe` Just (ApiKey "mk-env")
+
+    it "defaults to the MiniMax-M3 model when only a MiniMax key is present" $
+      case buildConfig emptyConfigFile (minimaxEnv "mk-env") of
+        Left  err -> expectationFailure (show err)
+        Right c   -> do
+          provider (defaultModel c) `shouldBe` MiniMax
+          model    (defaultModel c) `shouldBe` "MiniMax-M3"
+
+    it "prefers MiniMax over OpenAI for the default model when both keys are set" $
+      case buildConfig emptyConfigFile (EnvOverride (Just (ApiKey "sk")) Nothing (Just (ApiKey "mk"))) of
+        Left  err -> expectationFailure (show err)
+        Right c   -> provider (defaultModel c) `shouldBe` MiniMax
+
+    it "honours an explicit OpenAI defaultModel even when a MiniMax key is set" $
+      case buildConfig (cfWithOpenAIAndModel "sk" OpenAI "gpt-4o") (minimaxEnv "mk") of
+        Left  err -> expectationFailure (show err)
+        Right c   -> provider (defaultModel c) `shouldBe` OpenAI
+
   describe "loadConfigFile" $ do
 
     it "returns Right for a missing file (fresh install)" $
@@ -126,19 +157,23 @@ spec = do
 -- ---------------------------------------------------------------------------
 
 noEnv :: EnvOverride
-noEnv = EnvOverride Nothing Nothing
+noEnv = EnvOverride Nothing Nothing Nothing
 
 openaiEnv :: Text -> EnvOverride
-openaiEnv k = EnvOverride (Just (ApiKey k)) Nothing
+openaiEnv k = EnvOverride (Just (ApiKey k)) Nothing Nothing
 
 anthropicEnv :: Text -> EnvOverride
-anthropicEnv k = EnvOverride Nothing (Just (ApiKey k))
+anthropicEnv k = EnvOverride Nothing (Just (ApiKey k)) Nothing
+
+minimaxEnv :: Text -> EnvOverride
+minimaxEnv k = EnvOverride Nothing Nothing (Just (ApiKey k))
 
 cfWithOpenAI :: Text -> ConfigFile
 cfWithOpenAI k = emptyConfigFile
   { cfProviders = Just ProviderConfigFile
       { cfOpenai    = Just (ApiKeyFile (ApiKey k))
       , cfAnthropic = Nothing
+      , cfMiniMax   = Nothing
       }
   }
 
@@ -147,6 +182,16 @@ cfWithAnthropic k = emptyConfigFile
   { cfProviders = Just ProviderConfigFile
       { cfOpenai    = Nothing
       , cfAnthropic = Just (ApiKeyFile (ApiKey k))
+      , cfMiniMax   = Nothing
+      }
+  }
+
+cfWithMiniMax :: Text -> ConfigFile
+cfWithMiniMax k = emptyConfigFile
+  { cfProviders = Just ProviderConfigFile
+      { cfOpenai    = Nothing
+      , cfAnthropic = Nothing
+      , cfMiniMax   = Just (ApiKeyFile (ApiKey k))
       }
   }
 
@@ -155,6 +200,7 @@ cfWithBoth oa ant = emptyConfigFile
   { cfProviders = Just ProviderConfigFile
       { cfOpenai    = Just (ApiKeyFile (ApiKey oa))
       , cfAnthropic = Just (ApiKeyFile (ApiKey ant))
+      , cfMiniMax   = Nothing
       }
   }
 

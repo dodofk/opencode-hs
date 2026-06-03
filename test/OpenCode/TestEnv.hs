@@ -38,6 +38,7 @@ withTestEnv action = bracket (openDb ":memory:") close $ \conn -> do
         { providers    = ProviderConfig
             { openaiKey    = Just (ApiKey "sk-test-stub")
             , anthropicKey = Nothing
+            , minimaxKey   = Nothing
             }
         , defaultModel = ModelId OpenAI "gpt-4o"
         }
@@ -79,7 +80,8 @@ mkDummyEnv mkey = do
   chan     <- BChan.newBChan 100
   abortVar <- STM.newTVarIO False
   let cfg = Config
-        { providers    = ProviderConfig { openaiKey = mkey, anthropicKey = Nothing }
+        { providers    = ProviderConfig
+            { openaiKey = mkey, anthropicKey = Nothing, minimaxKey = Nothing }
         , defaultModel = ModelId OpenAI "gpt-4o"
         }
   pure AppEnv

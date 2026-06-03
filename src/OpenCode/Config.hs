@@ -1,7 +1,7 @@
 -- | Configuration loading from YAML file and environment variables.
 --
 -- Priority (highest first):
---   1. Environment variables (OPENAI_API_KEY, ANTHROPIC_API_KEY)
+--   1. Environment variables (OPENAI_API_KEY, ANTHROPIC_API_KEY, MINIMAX_API_KEY)
 --   2. ~/.config/opencode-hs/config.yaml
 --   3. Built-in defaults (defaultModel only)
 module OpenCode.Config
@@ -26,7 +26,7 @@ module OpenCode.Config
 
 import Control.Applicative ((<|>))
 import Data.Aeson (FromJSON (..), (.:), (.:?), withObject)
-import Data.Maybe (isNothing)
+import Data.Maybe (isJust, isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Yaml qualified as Yaml
@@ -48,6 +48,7 @@ data Config = Config
 data ProviderConfig = ProviderConfig
   { openaiKey    :: Maybe ApiKey
   , anthropicKey :: Maybe ApiKey
+  , minimaxKey   :: Maybe ApiKey
   }
   deriving stock (Show, Eq)
 
@@ -78,6 +79,7 @@ instance FromJSON ConfigFile where
 data ProviderConfigFile = ProviderConfigFile
   { cfOpenai    :: Maybe ApiKeyFile
   , cfAnthropic :: Maybe ApiKeyFile
+  , cfMiniMax   :: Maybe ApiKeyFile
   }
   deriving stock (Show, Eq)
 
@@ -85,6 +87,7 @@ instance FromJSON ProviderConfigFile where
   parseJSON = withObject "ProviderConfigFile" $ \o -> ProviderConfigFile
     <$> o .:? "openai"
     <*> o .:? "anthropic"
+    <*> o .:? "minimax"
 
 newtype ApiKeyFile = ApiKeyFile {afApiKey :: ApiKey}
   deriving stock (Show, Eq)
@@ -111,6 +114,7 @@ instance FromJSON ModelIdFile where
 data EnvOverride = EnvOverride
   { eoOpenAIKey    :: Maybe ApiKey
   , eoAnthropicKey :: Maybe ApiKey
+  , eoMiniMaxKey   :: Maybe ApiKey
   }
   deriving stock (Show, Eq)
 
@@ -118,6 +122,7 @@ loadEnvVars :: IO EnvOverride
 loadEnvVars = EnvOverride
   <$> readKey "OPENAI_API_KEY"
   <*> readKey "ANTHROPIC_API_KEY"
+  <*> readKey "MINIMAX_API_KEY"
   where
     readKey var = fmap (ApiKey . Text.pack) <$> lookupEnv var
 
@@ -125,9 +130,15 @@ loadEnvVars = EnvOverride
 -- Config assembly (pure, testable)
 -- ---------------------------------------------------------------------------
 
--- | The fallback model used when none is specified in the config file.
+-- | The fallback model used when no model is specified and no provider key
+-- selects a more specific default (see 'pickDefaultModel').
 fallbackModel :: ModelId
 fallbackModel = ModelId { provider = Anthropic, model = "claude-opus-4-5" }
+
+-- | The MiniMax model used when @MINIMAX_API_KEY@ is set and no explicit
+-- default model is configured.
+defaultMiniMaxModel :: Text
+defaultMiniMaxModel = "MiniMax-M3"
 
 -- | Build a 'Config' from a parsed config file and env-var overrides.
 -- Returns 'Left' when no API key can be found for any provider.
@@ -139,17 +150,29 @@ buildConfig cf env =
                <|> (afApiKey <$> (cfOpenai    =<< cfProviders cf))
     anthropicKey = eoAnthropicKey env
                <|> (afApiKey <$> (cfAnthropic =<< cfProviders cf))
+    minimaxKey   = eoMiniMaxKey   env
+               <|> (afApiKey <$> (cfMiniMax   =<< cfProviders cf))
 
-    defModel = maybe fallbackModel toModelId (cfDefaultModel cf)
+    providerCfg = ProviderConfig { openaiKey, anthropicKey, minimaxKey }
+    defModel    = maybe (pickDefaultModel providerCfg) toModelId (cfDefaultModel cf)
   in
-    if isNothing openaiKey && isNothing anthropicKey
+    if isNothing openaiKey && isNothing anthropicKey && isNothing minimaxKey
       then Left $ ConfigMissingKey
-        "No API key found. Set OPENAI_API_KEY or ANTHROPIC_API_KEY, \
+        "No API key found. Set MINIMAX_API_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY, \
         \or add them to ~/.config/opencode-hs/config.yaml."
       else Right Config
-        { providers    = ProviderConfig { openaiKey, anthropicKey }
+        { providers    = providerCfg
         , defaultModel = defModel
         }
+
+-- | When no @defaultModel@ is configured, pick one from whichever provider key
+-- is present, so that exporting a single @*_API_KEY@ is enough to run. MiniMax
+-- is preferred when its key is set, then OpenAI, then the Anthropic fallback.
+pickDefaultModel :: ProviderConfig -> ModelId
+pickDefaultModel pc
+  | isJust (minimaxKey pc) = ModelId { provider = MiniMax, model = defaultMiniMaxModel }
+  | isJust (openaiKey  pc) = ModelId { provider = OpenAI,  model = "gpt-4o" }
+  | otherwise              = fallbackModel
 
 toModelId :: ModelIdFile -> ModelId
 toModelId mf = ModelId { provider = mfProvider mf, model = mfModel mf }

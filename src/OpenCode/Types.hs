@@ -67,23 +67,26 @@ instance Show ApiKey where
 -- ---------------------------------------------------------------------------
 -- Provider / model
 --
--- JSON representation uses lowercase strings ("openai", "anthropic") so that
--- the config YAML is human-friendly.
+-- JSON representation uses lowercase strings ("openai", "anthropic",
+-- "minimax") so that the config YAML is human-friendly.
 -- ---------------------------------------------------------------------------
 
 data ProviderId
   = OpenAI
   | Anthropic
+  | MiniMax     -- ^ MiniMax; served over an OpenAI-compatible endpoint.
   deriving stock (Show, Eq, Ord, Generic)
 
 instance ToJSON ProviderId where
   toJSON OpenAI    = String "openai"
   toJSON Anthropic = String "anthropic"
+  toJSON MiniMax   = String "minimax"
 
 instance FromJSON ProviderId where
   parseJSON = withText "ProviderId" $ \case
     "openai"    -> pure OpenAI
     "anthropic" -> pure Anthropic
+    "minimax"   -> pure MiniMax
     other       -> fail $ "Unknown provider id: " <> Text.unpack other
 
 data ModelId = ModelId
