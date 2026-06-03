@@ -58,6 +58,44 @@ spec = do
           asKM t `shouldSatisfy` KM.member "tool_call_id"
         _ -> expectationFailure "expected two converted messages"
 
+    it "emits the tool result for an assistant message that bundles call+result" $ do
+      -- buildAssistantMessage packs the ToolCallPart and its ToolResultPart into
+      -- ONE assistant message; both the tool_call and the matching tool result
+      -- must reach the wire, else the provider rejects "tool call and result not
+      -- match".
+      let msgs =
+            [ Message (MessageId "m1") RoleAssistant
+                (NE.fromList
+                  [ ToolCallPart   (ToolCall "c1" "bash" (ToolArgs "{}"))
+                  , ToolResultPart (ToolResult "c1" "ok" False)
+                  ]) t0
+            ]
+          result = messagesToOpenAI "" msgs
+      length result `shouldBe` 2
+      case result of
+        (a : t : _) -> do
+          asKM a `shouldSatisfy` KM.member "tool_calls"
+          KM.lookup "role"         (asKM t) `shouldBe` Just (String "tool")
+          KM.lookup "tool_call_id" (asKM t) `shouldBe` Just (String "c1")
+          KM.lookup "content"      (asKM t) `shouldBe` Just (String "ok")
+        _ -> expectationFailure "expected assistant + tool messages"
+
+    it "emits one tool result per call for a multi-tool assistant message" $ do
+      let msgs =
+            [ Message (MessageId "m1") RoleAssistant
+                (NE.fromList
+                  [ ToolCallPart   (ToolCall "c1" "bash" (ToolArgs "{}"))
+                  , ToolResultPart (ToolResult "c1" "a" False)
+                  , ToolCallPart   (ToolCall "c2" "bash" (ToolArgs "{}"))
+                  , ToolResultPart (ToolResult "c2" "b" False)
+                  ]) t0
+            ]
+          result = messagesToOpenAI "" msgs
+      -- 1 assistant message (2 tool_calls) + 2 tool messages
+      length result `shouldBe` 3
+      [ KM.lookup "tool_call_id" (asKM t)
+        | t <- drop 1 result ] `shouldBe` [Just (String "c1"), Just (String "c2")]
+
   describe "buildOpenAIRequestBody" $ do
 
     it "produces a top-level object with model, messages, stream:true" $ do

@@ -57,12 +57,16 @@ messageToOpenAI m =
           if null toolCalls
             then [object ["role" .= ("assistant" :: Text), "content" .= textContent]]
             else
-              [ object
+              -- 'buildAssistantMessage' bundles each ToolCallPart with its
+              -- ToolResultPart in this one assistant message, so emit the
+              -- assistant tool_calls *and* the matching role:"tool" results
+              -- right after it — the API rejects a tool_call with no result.
+              object
                   [ "role"       .= ("assistant" :: Text)
                   , "content"    .= Aeson.Null
                   , "tool_calls" .= map toolCallToOpenAI toolCalls
                   ]
-              ]
+              : map toolResultToOpenAI toolResults
         RoleTool ->
           map toolResultToOpenAI toolResults
       -- Errors are appended as separate system-role messages (rare, but kept).
