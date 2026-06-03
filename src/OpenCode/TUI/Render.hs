@@ -10,6 +10,7 @@ module OpenCode.TUI.Render
   , toolAttr
   , errorAttr
   , statusAttr
+  , streamingAttr
     -- * Internals (exported for testing)
   , safeWrap
   ) where
@@ -62,6 +63,9 @@ toolAttr      = attrName "tool"
 errorAttr     = attrName "error"
 statusAttr    = attrName "status"
 
+streamingAttr :: AttrName
+streamingAttr = attrName "streaming"
+
 -- ---------------------------------------------------------------------------
 -- Top-level layout
 -- ---------------------------------------------------------------------------
@@ -72,7 +76,13 @@ drawUI st = [chat <=> statusBar st <=> inputBox st]
   where
     chat =
       viewport ChatViewport Vertical $
-        vBox (map renderMessage (toList (asMessages st)))
+        vBox (map renderMessage (toList (asMessages st)) <> inflight)
+    inflight
+      | asRunState st /= Idle && not (T.null (asPartialText st)) =
+          [ withAttr assistantAttr (txt (rolePrefix RoleAssistant))
+              <=> padLeft (Pad 2) (withAttr streamingAttr (safeWrap (asPartialText st)))
+          ]
+      | otherwise = []
 
 -- ---------------------------------------------------------------------------
 -- Status bar

@@ -60,6 +60,7 @@ import OpenCode.TUI.Render
   , drawUI
   , errorAttr
   , statusAttr
+  , streamingAttr
   , toolAttr
   , userAttr
   )
@@ -129,6 +130,7 @@ theMap = attrMap V.defAttr
   , (toolAttr,      fg V.yellow)
   , (errorAttr,     fg V.red)
   , (statusAttr,    V.white `on` V.blue)
+  , (streamingAttr, V.defAttr `V.withStyle` V.dim)
   ]
 
 -- ---------------------------------------------------------------------------

@@ -25,7 +25,7 @@ import Test.QuickCheck
   , resize
   )
 
-import OpenCode.Session.Events (RunState (Idle))
+import OpenCode.Session.Events (RunState (..))
 import OpenCode.TestEnv (newDummyEnv)
 import OpenCode.TUI.Render (drawUI, safeWrap)
 import OpenCode.TUI.Types (AppState (..), ResourceName (InputEditor))
@@ -95,6 +95,20 @@ spec = do
     it "renders non-empty text as a real text span" $ do
       let pic = M.renderWidget Nothing [safeWrap "hello"] (80, 24)
       show pic `shouldContain` "hello"
+
+  describe "in-flight partial" $ do
+
+    it "renders the partial text while a run is active" $ do
+      st0 <- mkState []
+      let st  = st0 { asRunState = RunningLLM, asPartialText = "streaming now" }
+          pic = M.renderWidget Nothing (drawUI st) (80, 24)
+      show pic `shouldContain` "streaming"
+
+    it "hides the partial text when Idle" $ do
+      st0 <- mkState []
+      let st  = st0 { asRunState = Idle, asPartialText = "ghosttext" }
+          pic = M.renderWidget Nothing (drawUI st) (80, 24)
+      show pic `shouldNotContain` "ghosttext"
 
 -- ---------------------------------------------------------------------------
 -- Helpers
