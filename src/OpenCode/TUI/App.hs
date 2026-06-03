@@ -147,7 +147,10 @@ handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
   let body = currentInput st
   when (asRunState st == Idle && shouldSubmit body) $ do
     msg <- liftIO (mkUserMessage body)
-    put (applyEnter msg st)
+    -- Set RunningLLM eagerly so the Idle gate (not just the cleared input)
+    -- blocks a second Enter during the window before the fork's first
+    -- RunStateChanged event arrives; also gives instant status feedback.
+    put ((applyEnter msg st) { asRunState = RunningLLM })
     liftIO (startRun (asEnv st) (asSessionId st) body)
 handleEvent (VtyEvent (V.EvKey V.KPageUp   [])) = M.vScrollBy chatScroll (-pageStep)
 handleEvent (VtyEvent (V.EvKey V.KPageDown [])) = M.vScrollBy chatScroll pageStep
