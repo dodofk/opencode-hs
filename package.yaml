@@ -178,6 +178,7 @@ tests:
       - OpenCode.CLISpec
       - OpenCode.ConfigSpec
       - OpenCode.DBSpec
+      - OpenCode.LLM.AnthropicSpec
       - OpenCode.LLM.MockSpec
       - OpenCode.LLM.OpenAISpec
       - OpenCode.LLM.RequestSpec
