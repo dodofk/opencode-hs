@@ -145,6 +145,7 @@ mkState msgs = do
     , asPartialText      = ""
     , asPartialReasoning = ""
     , asRound            = Nothing
+    , asTitle            = "untitled"
     , asEnv              = env
     , asSessionId        = sessionId sampleRenderSession
     }

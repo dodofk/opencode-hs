@@ -44,6 +44,7 @@ data AppState = AppState
   , asPartialText      :: Text
   , asPartialReasoning :: Text
   , asRound            :: Maybe (Int, Int)
+  , asTitle            :: Text
   , asEnv              :: AppEnv
   , asSessionId        :: SessionId
   }

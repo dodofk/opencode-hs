@@ -5,7 +5,7 @@ import Data.List (isSuffixOf, nub)
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Time (Day (..), UTCTime (..), fromGregorian, secondsToDiffTime)
+import Data.Time (Day (..), UTCTime (..), fromGregorian, getCurrentTime, secondsToDiffTime)
 import Database.SQLite.Simple
   ( Connection
   , Only (..)
@@ -134,6 +134,16 @@ spec = do
         insertSession conn s2
         xs <- listSessions conn
         map sessionId xs `shouldBe` [SessionId "new", SessionId "old"]
+
+  describe "updateSessionTitle" $
+    it "overwrites the stored title" $ do
+      conn <- openDb ":memory:"
+      now  <- getCurrentTime
+      let s = Session (SessionId "s-title") "untitled" (ModelId OpenAI "gpt-4o") now
+      insertSession conn s
+      updateSessionTitle conn (SessionId "s-title") "renamed"
+      m <- getSession conn (SessionId "s-title")
+      fmap sessionTitle m `shouldBe` Just "renamed"
 
   describe "insertMessage / getMessages" $ do
 

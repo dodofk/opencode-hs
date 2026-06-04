@@ -15,6 +15,7 @@ module OpenCode.TUI.Render
   , streamingAttr
     -- * Internals (exported for testing)
   , safeWrap
+  , leftLabel
   ) where
 
 import Brick
@@ -100,8 +101,14 @@ statusBar :: AppState -> Widget ResourceName
 statusBar st =
   withAttr statusAttr $
     vLimit 1 $
-      padRight Max (txt (asStatusLine st))
+      padRight Max (txt (leftLabel st))
         <+> txt (runStateLabel (asRunState st) <> roundSuffix (asRound st))
+
+leftLabel :: AppState -> Text
+leftLabel st
+  | t /= "" && t /= "untitled" = t <> " \8212 " <> asStatusLine st
+  | otherwise                  = asStatusLine st
+  where t = asTitle st
 
 roundSuffix :: Maybe (Int, Int) -> Text
 roundSuffix Nothing           = ""

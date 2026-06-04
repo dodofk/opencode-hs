@@ -32,6 +32,7 @@ library
       OpenCode.Session
       OpenCode.Session.Events
       OpenCode.Session.Prompt
+      OpenCode.Session.Title
       OpenCode.LLM.Anthropic
       OpenCode.LLM.Mock
       OpenCode.LLM.OpenAI
@@ -163,6 +164,7 @@ test-suite opencode-hs-test
       OpenCode.RunSpec
       OpenCode.Session.EventsSpec
       OpenCode.Session.PromptSpec
+      OpenCode.Session.TitleSpec
       OpenCode.SessionSpec
       OpenCode.TestEnv
       OpenCode.Tool.BashSpec

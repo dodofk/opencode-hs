@@ -39,4 +39,6 @@ data SessionEvent
       -- ^ A streaming reasoning/thinking delta (live-only; never persisted).
   | RoundStarted Int Int
       -- ^ A new agentic round began: 1-based current round, max rounds.
+  | SessionTitleChanged Text
+      -- ^ The session title was auto-generated/updated.
   deriving stock (Show, Eq)

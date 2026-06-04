@@ -111,6 +111,7 @@ spec = do
       currentInput st `shouldBe` ""
       asStatusLine st `shouldBe` "openai:gpt-4o"
       asPartialText st `shouldBe` ""
+      asTitle st `shouldBe` "untitled"
 
   describe "applyEvent (session-event reducer)" $ do
 
@@ -173,6 +174,10 @@ spec = do
       asRound st1 `shouldBe` Just (2, 10)
       asRound st2 `shouldBe` Nothing
 
+    it "SessionTitleChanged updates asTitle" $ do
+      st <- stateWithInput ""
+      asTitle (applyEvent (SessionTitleChanged "My Chat") st) `shouldBe` "My Chat"
+
   describe "startRun (forked agentic run)" $ do
 
     it "resets the abort flag synchronously before forking" $ do
@@ -210,6 +215,7 @@ stateWithInput t = do
     , asPartialText      = ""
     , asPartialReasoning = ""
     , asRound            = Nothing
+    , asTitle            = "untitled"
     , asEnv              = env
     , asSessionId        = sessionId sampleSession
     }

@@ -9,6 +9,7 @@ module OpenCode.DB
   , insertSession
   , getSession
   , listSessions
+  , updateSessionTitle
   , newSessionId
     -- * Messages
   , insertMessage
@@ -124,6 +125,12 @@ insertSession conn s = execute conn
   , encodeJsonText (sessionModel s)
   , sessionCreated s
   )
+
+-- | Overwrite a session's title.
+updateSessionTitle :: Connection -> SessionId -> Text -> IO ()
+updateSessionTitle conn (SessionId sid) title = execute conn
+  "UPDATE sessions SET title = ? WHERE id = ?"
+  (title, sid)
 
 -- | Look up a session by id. Returns Nothing if no row matches.
 getSession :: Connection -> SessionId -> IO (Maybe Session)
