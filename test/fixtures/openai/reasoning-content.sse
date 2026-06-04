@@ -1,0 +1,7 @@
+data: {"id":"x","choices":[{"index":0,"delta":{"reasoning_content":"let me think"},"finish_reason":null}]}
+
+data: {"id":"x","choices":[{"index":0,"delta":{"content":"answer"},"finish_reason":null}]}
+
+data: {"id":"x","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}
+
+data: [DONE]

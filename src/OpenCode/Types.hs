@@ -186,6 +186,7 @@ instance FromJSON ToolResult where parseJSON = genericParseJSON defaultOptions
 
 data StreamEvent
   = TextDelta Text
+  | ReasoningDelta Text           -- ^ model "thinking" content (live-only, never persisted)
   | ToolCallStart Text Text       -- ^ callId toolName
   | ToolCallArgDelta Text Text    -- ^ callId argFragment
   | ToolCallEnd Text              -- ^ callId (arguments fully received)

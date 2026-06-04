@@ -132,6 +132,30 @@ spec = do
       events <- runStream "test/fixtures/openai/done-only.sse"
       events `shouldBe` []
 
+    it "emits ReasoningDelta for reasoning_content" $ do
+      events <- runStream "test/fixtures/openai/reasoning-content.sse"
+      events `shouldBe`
+        [ ReasoningDelta "let me think", TextDelta "answer", StreamDone (Usage 3 2 Nothing Nothing) ]
+
+    it "splits inline <think> content into reasoning + text" $ do
+      events <- runStream "test/fixtures/openai/inline-think.sse"
+      events `shouldBe`
+        [ ReasoningDelta "reasoning here", TextDelta "final", StreamDone (Usage 1 1 Nothing Nothing) ]
+
+  describe "splitThink / stepThink (inline <think> splitter)" $ do
+    it "passes plain text through as TextDelta" $
+      let (_, evs) = stepThink initThink "hello world"
+      in evs `shouldBe` [TextDelta "hello world"]
+
+    it "routes text inside <think>...</think> to ReasoningDelta" $
+      let (_, evs) = stepThink initThink "before<think>secret</think>after"
+      in evs `shouldBe` [TextDelta "before", ReasoningDelta "secret", TextDelta "after"]
+
+    it "tolerates a tag split across two deltas" $
+      let (s1, e1) = stepThink initThink "abc<thi"
+          (_,  e2) = stepThink s1 "nk>xyz"
+      in (e1, e2) `shouldBe` ([TextDelta "abc"], [ReasoningDelta "xyz"])
+
   describe "streamErrorFromHttp" $ do
 
     it "produces a StreamError with status + truncated body" $
@@ -191,7 +215,7 @@ mkTextChunk content = ChatCompletionChunk
   , cccChoices =
       [ Choice
           { choiceIndex        = 0
-          , choiceDelta        = Delta { deltaContent = Just content, deltaToolCalls = Nothing }
+          , choiceDelta        = Delta { deltaContent = Just content, deltaReasoning = Nothing, deltaToolCalls = Nothing }
           , choiceFinishReason = Nothing
           }
       ]
@@ -206,6 +230,7 @@ mkToolStartChunk idx cid tname args = ChatCompletionChunk
           { choiceIndex        = 0
           , choiceDelta        = Delta
               { deltaContent   = Nothing
+              , deltaReasoning = Nothing
               , deltaToolCalls = Just
                   [ ToolCallDelta
                       { tcdIndex    = idx
@@ -231,6 +256,7 @@ mkToolArgChunk idx args = ChatCompletionChunk
           { choiceIndex        = 0
           , choiceDelta        = Delta
               { deltaContent   = Nothing
+              , deltaReasoning = Nothing
               , deltaToolCalls = Just
                   [ ToolCallDelta
                       { tcdIndex    = idx
@@ -254,7 +280,7 @@ mkFinishChunk reason usage = ChatCompletionChunk
   , cccChoices =
       [ Choice
           { choiceIndex        = 0
-          , choiceDelta        = Delta { deltaContent = Nothing, deltaToolCalls = Nothing }
+          , choiceDelta        = Delta { deltaContent = Nothing, deltaReasoning = Nothing, deltaToolCalls = Nothing }
           , choiceFinishReason = Just reason
           }
       ]

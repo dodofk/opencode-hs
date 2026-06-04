@@ -16,6 +16,10 @@ module OpenCode.LLM.OpenAI
   , ToolCallAccum
   , processChunk
   , interpretOpenAIStream
+  , ThinkState (..)
+  , initThink
+  , stepThink
+  , splitThink
     -- * Streaming
   , streamOpenAI
   , streamErrorFromHttp
@@ -79,6 +83,7 @@ data Choice = Choice
 
 data Delta = Delta
   { deltaContent   :: Maybe Text
+  , deltaReasoning :: Maybe Text
   , deltaToolCalls :: Maybe [ToolCallDelta]
   }
   deriving stock (Show, Eq)
@@ -121,6 +126,7 @@ instance FromJSON Delta where
   parseJSON = withObject "Delta" $ \o ->
     Delta
       <$> o .:? "content"
+      <*> o .:? "reasoning_content"
       <*> o .:? "tool_calls"
 
 instance FromJSON ToolCallDelta where
@@ -167,7 +173,8 @@ processChunk
   -> ([StreamEvent], ToolCallAccum)
 processChunk st chunk =
   let allChoices = cccChoices chunk
-      (textEvents,  st1) = foldl' collectText  ([], st) allChoices
+      (reasonEvents, st0) = foldl' collectReasoning ([], st) allChoices
+      (textEvents,  st1) = foldl' collectText  (reasonEvents, st0) allChoices
       (toolEvents,  st2) = foldl' collectTools (textEvents, st1) allChoices
       (finalEvents, st3) = foldl' collectFinish (toolEvents, st2) allChoices
       usageEvents = case cccUsage chunk of
@@ -176,6 +183,10 @@ processChunk st chunk =
         _       -> []
   in (finalEvents ++ usageEvents, st3)
   where
+    collectReasoning (acc, s) ch = case deltaReasoning (choiceDelta ch) of
+      Just t | not (Text.null t) -> (acc ++ [ReasoningDelta t], s)
+      _                          -> (acc, s)
+
     collectText (acc, s) ch = case deltaContent (choiceDelta ch) of
       Just t | not (Text.null t) -> (acc ++ [TextDelta t], s)
       _                          -> (acc, s)
@@ -234,6 +245,7 @@ interpretOpenAIStream
 interpretOpenAIStream =
   Request.chunkSSELines
     .| translateLines
+    .| splitThink
   where
     translateLines = go Map.empty
     go st = do
@@ -249,6 +261,79 @@ interpretOpenAIStream =
               let (events, st') = processChunk st chunk
               mapM_ yield events
               go st'
+
+-- | State of the inline-<think> splitter: whether we are currently inside a
+-- think block, plus a buffer holding a suffix that could be the start of a
+-- (possibly split-across-chunks) tag.
+data ThinkState = ThinkState
+  { tsInThink :: Bool
+  , tsPending :: Text
+  }
+  deriving stock (Show, Eq)
+
+initThink :: ThinkState
+initThink = ThinkState False ""
+
+thinkOpen, thinkClose :: Text
+thinkOpen  = "<think>"
+thinkClose = "</think>"
+
+-- | Process one text delta, emitting outside-think text as 'TextDelta' and
+-- inside-think text as 'ReasoningDelta'. Carries a partial-tag buffer so a tag
+-- straddling a chunk boundary is recognised on the next call.
+stepThink :: ThinkState -> Text -> (ThinkState, [StreamEvent])
+stepThink (ThinkState inThink pending) input = go inThink (pending <> input) []
+  where
+    go inT buf acc
+      | inT =
+          case Text.breakOn thinkClose buf of
+            (inside, rest)
+              | Text.null rest ->
+                  let held = longestPartial thinkClose buf
+                      emit = Text.dropEnd (Text.length held) buf
+                  in (ThinkState True held, reverse (consReason emit acc))
+              | otherwise ->
+                  let rest' = Text.drop (Text.length thinkClose) rest
+                  in go False rest' (consReason inside acc)
+      | otherwise =
+          case Text.breakOn thinkOpen buf of
+            (outside, rest)
+              | Text.null rest ->
+                  let held = longestPartial thinkOpen buf
+                      emit = Text.dropEnd (Text.length held) buf
+                  in (ThinkState False held, reverse (consText emit acc))
+              | otherwise ->
+                  let rest' = Text.drop (Text.length thinkOpen) rest
+                  in go True rest' (consText outside acc)
+    consText t acc   = if Text.null t then acc else TextDelta t : acc
+    consReason t acc = if Text.null t then acc else ReasoningDelta t : acc
+
+-- | The longest suffix of @buf@ that is a (proper) prefix of @tag@; "" if none.
+longestPartial :: Text -> Text -> Text
+longestPartial tag buf = go (min (Text.length buf) (Text.length tag - 1))
+  where
+    go 0 = ""
+    go k = let sfx = Text.takeEnd k buf
+           in if sfx `Text.isPrefixOf` tag then sfx else go (k - 1)
+
+-- | Conduit stage: split 'TextDelta's into outside/inside-think events; every
+-- other event passes through unchanged. Applied after 'processChunk'.
+splitThink :: Monad m => ConduitT StreamEvent StreamEvent m ()
+splitThink = loop initThink
+  where
+    loop st = do
+      mev <- await
+      case mev of
+        Nothing -> flush st
+        Just (TextDelta t) -> do
+          let (st', outs) = stepThink st t
+          mapM_ yield outs
+          loop st'
+        Just other -> yield other >> loop st
+    flush (ThinkState inT pending)
+      | Text.null pending = pure ()
+      | inT               = yield (ReasoningDelta pending)
+      | otherwise         = yield (TextDelta pending)
 
 -- | Default provider pointing at the public OpenAI endpoint.
 defaultOpenAI :: ApiKey -> OpenAIProvider

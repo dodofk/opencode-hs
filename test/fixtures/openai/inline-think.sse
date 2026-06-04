@@ -1,0 +1,5 @@
+data: {"id":"x","choices":[{"index":0,"delta":{"content":"<think>reasoning here</think>final"},"finish_reason":null}]}
+
+data: {"id":"x","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}
+
+data: [DONE]
