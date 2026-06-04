@@ -4,7 +4,7 @@ Each milestone is self-contained, testable, and merges as a single PR.
 Milestones are sequenced; no parallelism is assumed for solo development.
 Acceptance for each is one or more concrete shell commands plus expected outcome — not narrative.
 
-## Status snapshot (as of 2026-05-29)
+## Status snapshot (as of 2026-06-04)
 
 | #   | Title                                  | Status    | Commit / PR        |
 | --- | -------------------------------------- | --------- | ------------------ |
@@ -16,13 +16,15 @@ Acceptance for each is one or more concrete shell commands plus expected outcome
 | M5  | Tool System: file I/O                  | done      | `5b9ddc9..`        |
 | M6  | Session Loop                           | done      | `4d0d2ba..`        |
 | M7  | Tool System: execution + search        | done      | `1e0425d..`        |
-| M8  | TUI: static layout                     | done      | `see M8 PR`        |
-| M9  | TUI: streaming + tool inline + abort   | done      | `see M9 PR`        |
+| M8  | TUI: static layout                     | done      | `4e2aeab..`        |
+| M9  | TUI: streaming + tool inline + abort   | done      | `100700b..`        |
 | M10 | CLI commands                           | pending   | —                  |
 | M11 | Anthropic provider                     | pending   | —                  |
 | M12 | Hardening                              | pending   | —                  |
 
 MCP support is **dropped from v1** and will be revisited post-v1. The original M3 was split: OpenAI ships first as M4, Anthropic deferred to M11. The original M4 (tools) and M7 (TUI) were each split into two milestones. Context-window summarization, auto-title, SIGINT handling, `--version`, and README polish were deferred from earlier milestones into M12.
+
+**MiniMax** was added during M9 (`6312b63`) as a third provider served over the OpenAI-compatible endpoint — it reuses the M4 streaming layer and is configured from `MINIMAX_API_KEY`, so it gets no separate milestone number. Anthropic remains planned for M11 as the natively-supported (non-OpenAI-compatible) provider.
 
 ---
 
@@ -133,6 +135,10 @@ Outcome: all ADTs from SPEC §3.2 in `OpenCode.Types`; YAML config loader with e
 
 - `stack test --match "OpenCode.LLM"` passes.
 - `stack test --match "parseSSELine"` includes at least one property test (`encode . decode = id` on the payload bytes).
+
+### Notes
+
+- **Reused for MiniMax (added in M9):** MiniMax is OpenAI-compatible, so it rides this same `streamOpenAI` path via `minimaxOpenAI` — only the base URL differs (`https://api.minimax.io`) — configured from `MINIMAX_API_KEY`. No new parser was needed.
 
 ---
 
@@ -316,6 +322,12 @@ keyless manual testing. Errors always surface as a red line: typed failures via
 responses via `ErrorOccurred` from the agentic loop — so a non-response is never
 silent.
 
+Real end-to-end testing against MiniMax during this milestone also surfaced and
+fixed a latent M6 tool-round serialization bug (`7d277e5`): an assistant
+`tool_calls` message must be followed on the wire by matching `role:"tool"`
+result messages. The mock streamer never validated history, so only a live
+provider caught it.
+
 **Goal**: Layer live streaming, inline tool execution rendering, and mid-stream abort on top of M8's static TUI.
 
 ### Tasks
@@ -433,6 +445,8 @@ silent.
   - DB locked (opened in another process) → graceful `DatabaseError` exit, no crash.
   - Streaming connection drop mid-response → `StreamError` emitted; partial message persisted with an `ErrorPart`.
 - **CI tightening**: add `-Wall -Werror` to the CI build flags.
+- **Reasoning-content rendering** (surfaced in M9 against MiniMax-M3): extend the OpenAI/MiniMax SSE parser to emit reasoning deltas — `delta.reasoning_content`, plus inline `<think>…</think>` content — as a distinct event, and render them in the TUI as a dim, collapsible "thinking" block instead of discarding them, so a reasoning-only chunk no longer looks like an empty response. (M9 already made the empty case non-silent; this adds the actual rendering.)
+- **Run progress visibility** (surfaced in M9): show round/tool progress in the TUI status bar (e.g. `round 2/10 · running bash…`) so a long multi-round tool run reads as in-progress rather than hung.
 
 ### Acceptance
 
@@ -443,6 +457,8 @@ silent.
 - `stack run -- --version` prints the cabal version.
 - A conversation seeded to exceed an artificially-low context limit triggers summarization (verifiable in a test).
 - A fresh user can follow the README from install through first prompt successfully.
+- A fixture stream carrying `reasoning_content` renders as a dim thinking block in the TUI, not an empty/error line.
+- During a scripted multi-round mock run, the status bar reflects the active round number and the running tool.
 
 ---
 
