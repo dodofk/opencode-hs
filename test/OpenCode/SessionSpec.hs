@@ -3,7 +3,6 @@ module OpenCode.SessionSpec (spec) where
 import qualified Brick.BChan as BChan
 import Control.Exception (bracket)
 import qualified Control.Concurrent.STM as STM
-import Data.Either (isLeft, isRight)
 import Control.Monad (when)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.IO.Class (liftIO)
@@ -12,6 +11,7 @@ import qualified Conduit
 import Database.SQLite.Simple (close)
 import System.Directory (doesFileExist, removeFile)
 import Test.Hspec
+import Data.Either (isLeft, isRight)
 import qualified Data.List.NonEmpty as NE
 
 import OpenCode.App (AppEnv (..))
@@ -258,6 +258,8 @@ spec = do
     it "returns a streamer when the MiniMax key is present" $
       isRight (streamerForProvider (cfgWith Nothing (Just (ApiKey "k"))) MiniMax)
         `shouldBe` True
+    it "fails when the MiniMax key is absent" $
+      isLeft (streamerForProvider (cfgWith Nothing Nothing) MiniMax) `shouldBe` True
     it "fails for Anthropic (not yet implemented)" $
       isLeft (streamerForProvider (cfgWith (Just (ApiKey "k")) Nothing) Anthropic)
         `shouldBe` True
