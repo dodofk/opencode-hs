@@ -7,10 +7,19 @@ module OpenCode.CLI
   , defaultRunOpts
   , parseModelId
   , providerLabel
+  , commandParserInfo
+  , parseArgs
   ) where
 
+import Data.Bifunctor (first)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Options.Applicative
+  ( Parser, ParserInfo, ReadM, command, defaultPrefs, eitherReader
+  , execParserPure, fullDesc, getParseResult, header, help, helper, info
+  , long, metavar, option, optional, progDesc, strArgument, strOption
+  , subparser, switch, (<**>)
+  )
 
 import OpenCode.Types (ModelId (..), ProviderId (..), SessionId (..))
 
@@ -61,3 +70,50 @@ providerFromText = \case
   "anthropic" -> Just Anthropic
   "minimax"   -> Just MiniMax
   _           -> Nothing
+
+-- | Top-level parser info (program description + @--help@).
+commandParserInfo :: ParserInfo Command
+commandParserInfo = info (commandParser <**> helper)
+  (fullDesc <> progDesc "A terminal AI coding agent" <> header "opencode-hs")
+
+commandParser :: Parser Command
+commandParser = subparser
+  ( command "run"
+      (info (Run <$> runOptsParser <**> helper)
+            (progDesc "Start the TUI, or run a single prompt headless"))
+ <> command "list"
+      (info (pure List) (progDesc "List stored sessions"))
+ <> command "export"
+      (info (Export <$> sessionIdArg <**> helper)
+            (progDesc "Export a session as Markdown to stdout"))
+ <> command "config"
+      (info (configParser <**> helper) (progDesc "Configuration commands"))
+  )
+
+configParser :: Parser Command
+configParser = subparser
+  ( command "check"
+      (info (pure ConfigCheck) (progDesc "Probe each configured provider")) )
+
+runOptsParser :: Parser RunOpts
+runOptsParser = RunOpts
+  <$> optional (SessionId <$> strOption
+        (long "session" <> metavar "ID" <> help "Resume an existing session"))
+  <*> optional (option modelReader
+        (long "model" <> metavar "PROVIDER:MODEL" <> help "Model, e.g. openai:gpt-4o"))
+  <*> optional (strOption
+        (long "prompt" <> metavar "TEXT" <> help "Prompt to send (requires --no-tui)"))
+  <*> switch (long "no-tui" <> help "Run headless: stream the reply to stdout")
+
+modelReader :: ReadM ModelId
+modelReader = eitherReader (first T.unpack . parseModelId . T.pack)
+
+sessionIdArg :: Parser SessionId
+sessionIdArg = SessionId <$> strArgument
+  (metavar "SESSION_ID" <> help "Session id to export")
+
+-- | Pure parse used by tests and by 'OpenCode.Run.runApp'. Empty args map to
+-- the default Run (bare invocation -> TUI); otherwise run the optparse grammar.
+parseArgs :: [String] -> Maybe Command
+parseArgs [] = Just (Run defaultRunOpts)
+parseArgs as = getParseResult (execParserPure defaultPrefs commandParserInfo as)
