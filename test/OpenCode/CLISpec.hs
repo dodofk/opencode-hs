@@ -1,12 +1,17 @@
 module OpenCode.CLISpec (spec) where
 
 import Data.Either (isLeft)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Text as T
 import Data.Time (UTCTime (..), fromGregorian)
 import Test.Hspec
 
 import OpenCode.CLI
-import OpenCode.Types (ModelId (..), ProviderId (..), Session (..), SessionId (..))
+import OpenCode.Types
+  ( Message (..), MessageId (..), MessagePart (..), ModelId (..), ProviderId (..)
+  , Role (..), Session (..), SessionId (..), ToolArgs (..), ToolCall (..)
+  , ToolResult (..)
+  )
 
 spec :: Spec
 spec = do
@@ -62,6 +67,18 @@ spec = do
       out `shouldSatisfy` T.isInfixOf "ID"
     it "renders a placeholder for an empty list" $
       renderSessionList [] `shouldBe` "(no sessions)\n"
+  describe "renderExportMarkdown" $
+    it "renders metadata, role headings, and fenced tool blocks" $ do
+      let md = renderExportMarkdown sess1 [userMsg, assistantMsg]
+      md `shouldSatisfy` T.isInfixOf "# first"
+      md `shouldSatisfy` T.isInfixOf "**ID:** s-001"
+      md `shouldSatisfy` T.isInfixOf "**Model:** openai:gpt-4o"
+      md `shouldSatisfy` T.isInfixOf "## User"
+      md `shouldSatisfy` T.isInfixOf "## Assistant"
+      md `shouldSatisfy` T.isInfixOf "hello"
+      md `shouldSatisfy` T.isInfixOf "```bash"
+      md `shouldSatisfy` T.isInfixOf "```result"
+      md `shouldSatisfy` T.isInfixOf "file.txt"
 
 t0 :: UTCTime
 t0 = UTCTime (fromGregorian 2026 6 4) 0
@@ -71,3 +88,11 @@ sess1 = Session (SessionId "s-001") "first" (ModelId OpenAI "gpt-4o") t0
 
 sess2 :: Session
 sess2 = Session (SessionId "s-002") "second" (ModelId MiniMax "MiniMax-M3") t0
+
+userMsg :: Message
+userMsg = Message (MessageId "m1") RoleUser (TextPart "hello" :| []) t0
+
+assistantMsg :: Message
+assistantMsg = Message (MessageId "m2") RoleAssistant
+  ( ToolCallPart (ToolCall "c1" "bash" (ToolArgs "{\"command\":\"ls\"}"))
+    :| [ ToolResultPart (ToolResult "c1" "file.txt" False) ] ) t0

@@ -10,9 +10,11 @@ module OpenCode.CLI
   , commandParserInfo
   , parseArgs
   , renderSessionList
+  , renderExportMarkdown
   ) where
 
 import Data.Bifunctor (first)
+import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time (UTCTime)
@@ -24,7 +26,10 @@ import Options.Applicative
   , subparser, switch, (<**>)
   )
 
-import OpenCode.Types (ModelId (..), ProviderId (..), Session (..), SessionId (..))
+import OpenCode.Types
+  ( Message (..), MessagePart (..), ModelId (..), ProviderId (..), Role (..)
+  , Session (..), SessionId (..), ToolArgs (..), ToolCall (..), ToolResult (..)
+  )
 
 -- | A parsed top-level command.
 data Command
@@ -142,3 +147,35 @@ modelText m = providerLabel (provider m) <> ":" <> model m
 
 createdText :: UTCTime -> Text
 createdText = T.pack . formatTime defaultTimeLocale "%Y-%m-%d %H:%M"
+
+-- | Render a session and its messages as Markdown: a title + metadata block,
+-- then one @##@ section per message with text, fenced tool calls/results, and
+-- blockquoted errors.
+renderExportMarkdown :: Session -> [Message] -> Text
+renderExportMarkdown s msgs = T.unlines $
+  [ "# " <> sessionTitle s
+  , ""
+  , "- **ID:** " <> unSessionId (sessionId s)
+  , "- **Model:** " <> modelText (sessionModel s)
+  , "- **Created:** " <> createdText (sessionCreated s)
+  , ""
+  ] <> concatMap renderMessageMd msgs
+
+renderMessageMd :: Message -> [Text]
+renderMessageMd m =
+  ("## " <> roleHeading (msgRole m))
+  : ""
+  : (concatMap renderPartMd (NE.toList (msgParts m)) <> [""])
+
+roleHeading :: Role -> Text
+roleHeading = \case
+  RoleUser      -> "User"
+  RoleAssistant -> "Assistant"
+  RoleTool      -> "Tool"
+
+renderPartMd :: MessagePart -> [Text]
+renderPartMd = \case
+  TextPart t        -> [t, ""]
+  ToolCallPart tc   -> ["```" <> toolName tc, unToolArgs (arguments tc), "```", ""]
+  ToolResultPart tr -> ["```result", content tr, "```", ""]
+  ErrorPart e       -> ["> ⚠ " <> e, ""]
