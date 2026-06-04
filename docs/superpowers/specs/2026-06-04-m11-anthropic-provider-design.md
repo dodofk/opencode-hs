@@ -181,9 +181,28 @@ Add `defaultAnthropicModel :: Text = "claude-opus-4-5"` and export it; redefine
 
 ### 4. `OpenCode.Session`
 
-`streamerForProvider` `Anthropic` arm → `withKey (Config.anthropicKey pc)
-"Anthropic" Anthropic.defaultAnthropic` (i.e. `Right (streamAnthropic
-(defaultAnthropic key))`), removing the `Left`.
+The existing `withKey` helper hardcodes `OpenAI.streamOpenAI (mkProvider key)`,
+so it can't build an Anthropic streamer. Generalize it to take a full
+`ApiKey -> Streamer` builder, and have each arm supply its own:
+
+```haskell
+streamerForProvider cfg pid = case pid of
+  OpenAI    -> withKey (Config.openaiKey    pc) "OpenAI"
+                 (OpenAI.streamOpenAI . OpenAI.defaultOpenAI)
+  MiniMax   -> withKey (Config.minimaxKey   pc) "MiniMax"
+                 (OpenAI.streamOpenAI . OpenAI.minimaxOpenAI)
+  Anthropic -> withKey (Config.anthropicKey pc) "Anthropic"
+                 (Anthropic.streamAnthropic . Anthropic.defaultAnthropic)
+  where
+    pc = Config.providers cfg
+    withKey mKey label mkStreamer = case mKey of
+      Nothing  -> Left (LLMError ("no " <> label <> " API key configured"))
+      Just key -> Right (mkStreamer key)
+```
+
+This removes the Anthropic `Left` and keeps OpenAI/MiniMax behavior identical
+(`streamOpenAI . defaultOpenAI` ≡ the old `streamOpenAI (defaultOpenAI key)`).
+Add an `import qualified OpenCode.LLM.Anthropic as Anthropic`.
 
 ### 5. `OpenCode.Run`
 
