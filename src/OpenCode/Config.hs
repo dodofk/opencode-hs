@@ -16,6 +16,7 @@ module OpenCode.Config
     -- * Pure assembly (exported for white-box testing)
   , buildConfig
   , EnvOverride (..)
+  , defaultMiniMaxModel
     -- * Internal YAML-shaped types (exported for white-box testing)
   , ConfigFile (..)
   , ProviderConfigFile (..)
