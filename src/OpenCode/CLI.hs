@@ -65,11 +65,11 @@ parseModelId raw =
   case T.breakOn ":" raw of
     (_, "")          -> Left ("expected provider:model, got: " <> raw)
     (provText, rest) ->
-      let modelText = T.drop 1 rest
-      in if T.null modelText
+      let mdl = T.drop 1 rest
+      in if T.null mdl
            then Left ("missing model in: " <> raw)
            else case providerFromText provText of
-             Just p  -> Right (ModelId { provider = p, model = modelText })
+             Just p  -> Right (ModelId { provider = p, model = mdl })
              Nothing -> Left ("unknown provider: " <> provText)
 
 providerFromText :: Text -> Maybe ProviderId
