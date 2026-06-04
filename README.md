@@ -1,39 +1,79 @@
 # opencode-hs
 
-[![CI](https://github.com/dodofk/opencode-hs/actions/workflows/ci.yml/badge.svg)](https://github.com/dodofk/opencode-hs/actions/workflows/ci.yml)
+A terminal AI coding agent in Haskell.
 
-A Haskell reimplementation of [OpenCode](https://github.com/sst/opencode) — a terminal AI coding agent.
+![CI](https://github.com/dodofk/opencode-hs/actions/workflows/ci.yml/badge.svg)
 
-Built for correctness and FP purity: GADTs for tools, `conduit` streaming for LLM responses, `STM` for concurrency, `brick` for TUI.
+## What it is
 
-## Status
+`opencode-hs` is a terminal AI coding agent that streams LLM responses token-by-token through a [brick](https://github.com/jtdaugherty/brick) TUI, backed by a type-safe tool system and SQLite session history. Supports OpenAI, Anthropic, and MiniMax as providers.
 
-Work in progress. See [MILESTONES.md](MILESTONES.md) for the plan and [SPEC.md](SPEC.md) for the full specification.
+## Install
 
-## Requirements
+Requires GHC 9.6.6 and Stack.
 
-- GHC 9.6+ (via [GHCup](https://www.haskell.org/ghcup/))
-- Stack
+```sh
+# Install the binary to your PATH
+stack install
 
-## Install toolchain
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
-ghcup install ghc 9.6.6
-ghcup install stack
-```
-
-## Build
-
-```bash
+# Or build and run without installing
 stack build
-stack test
-stack run -- run
+stack run opencode-hs -- <args>
 ```
 
-## Config
+## Quickstart
 
-Create `~/.config/opencode-hs/config.yaml`:
+```sh
+# Start the interactive TUI (bare invocation)
+stack run opencode-hs
+```
+
+```sh
+# Run a single prompt headless (no TUI, streams to stdout)
+stack run opencode-hs -- run --prompt "list the .hs files" --no-tui
+```
+
+```sh
+# Resume an existing session
+stack run opencode-hs -- run --session <ID>
+```
+
+```sh
+# Choose a specific model
+stack run opencode-hs -- run --model openai:gpt-4o
+```
+
+```sh
+# List all stored sessions
+stack run opencode-hs -- list
+```
+
+```sh
+# Export a session to Markdown on stdout
+stack run opencode-hs -- export <SESSION_ID>
+```
+
+```sh
+# Probe each configured provider for connectivity
+stack run opencode-hs -- config check
+```
+
+```sh
+# Print version and exit
+stack run opencode-hs -- --version
+```
+
+## Configuration
+
+Environment variables take priority over the config file. Set one key to get started:
+
+```sh
+export OPENAI_API_KEY=sk-...
+export ANTHROPIC_API_KEY=sk-ant-...
+export MINIMAX_API_KEY=...
+```
+
+Config file path: `~/.config/opencode-hs/config.yaml`
 
 ```yaml
 providers:
@@ -41,14 +81,63 @@ providers:
     apiKey: sk-...
   anthropic:
     apiKey: sk-ant-...
-
+  minimax:
+    apiKey: ...
 defaultModel:
-  provider: anthropic
-  model: claude-opus-4-7
+  provider: openai
+  model: gpt-4o
 ```
 
-Or set environment variables: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`.
+When no `defaultModel` is set, the agent picks one automatically based on which keys are present: MiniMax key → `MiniMax-M3`; otherwise OpenAI key → `gpt-4o`; otherwise Anthropic fallback → `claude-opus-4-5`.
 
-## Architecture
+## Providers & models
 
-See [SPEC.md](SPEC.md) for detailed architecture documentation.
+| Provider  | Example model      | Notes                                      |
+|-----------|--------------------|--------------------------------------------|
+| OpenAI    | `gpt-4o`           | Standard OpenAI API                        |
+| Anthropic | `claude-opus-4-5`  | Native Anthropic streaming API             |
+| MiniMax   | `MiniMax-M3`       | Served over an OpenAI-compatible endpoint  |
+
+Pass `--model provider:model` to override per-run, e.g. `--model anthropic:claude-opus-4-5`.
+
+## Built-in tools
+
+The agent can call these tools during a run:
+
+- `read_file` — read a file from disk
+- `write_file` — write or overwrite a file
+- `edit_file` — apply a targeted patch to an existing file
+- `bash` — execute a shell command and return its output
+- `glob` — expand a glob pattern to a list of matching paths
+- `grep` — search file contents for a pattern
+
+## TUI keys
+
+| Key          | Action                                       |
+|--------------|----------------------------------------------|
+| Enter        | Submit the input (when idle)                 |
+| Esc          | Request cooperative abort of the current run |
+| ↑ / ↓        | Scroll the chat one line                     |
+| PgUp / PgDn  | Scroll the chat one page                     |
+| Ctrl-C       | Quit                                         |
+
+Abort is cooperative: Esc signals the loop to stop between tool rounds. If the process receives SIGINT (Ctrl-C in headless mode), it exits immediately.
+
+## Troubleshooting
+
+**No API key configured**
+
+```
+No API key found. Set MINIMAX_API_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY,
+or add them to ~/.config/opencode-hs/config.yaml.
+```
+
+Set at least one of `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `MINIMAX_API_KEY`, or add the key under `providers` in the config file.
+
+**Testing the TUI without a key**
+
+Set `OPENCODE_MOCK=1` to enable a canned streaming reply that exercises the full TUI rendering path without hitting any provider:
+
+```sh
+OPENCODE_MOCK=1 stack run opencode-hs
+```
