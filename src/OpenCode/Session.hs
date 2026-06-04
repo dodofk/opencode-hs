@@ -355,9 +355,10 @@ selectStreamer cfg = streamerForProvider cfg (provider (Config.defaultModel cfg)
 
 -- | Pick a streamer for a specific provider id, given the configured keys.
 -- MiniMax and OpenAI share the OpenAI-compatible wire format and differ only in
--- base URL, so both go through 'OpenAI.streamOpenAI'. The Anthropic path is not
--- yet implemented. Exported so @config check@ can probe a provider other than
--- the default model's.
+-- base URL, so both go through 'OpenAI.streamOpenAI'; Anthropic uses its own
+-- 'Anthropic.streamAnthropic'. Each arm fails with 'LLMError' when its key is
+-- absent. Exported so @config check@ can probe a provider other than the
+-- default model's.
 streamerForProvider :: Config.Config -> ProviderId -> Either AppError Streamer
 streamerForProvider cfg pid =
   case pid of
