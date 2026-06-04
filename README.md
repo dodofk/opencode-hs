@@ -1,12 +1,14 @@
 # opencode-hs
 
-A terminal AI coding agent in Haskell.
+A terminal AI coding agent in Haskell — a reimplementation of [OpenCode](https://github.com/sst/opencode).
 
-![CI](https://github.com/dodofk/opencode-hs/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/dodofk/opencode-hs/actions/workflows/ci.yml/badge.svg)](https://github.com/dodofk/opencode-hs/actions/workflows/ci.yml)
 
 ## What it is
 
-`opencode-hs` is a terminal AI coding agent that streams LLM responses token-by-token through a [brick](https://github.com/jtdaugherty/brick) TUI, backed by a type-safe tool system and SQLite session history. Supports OpenAI, Anthropic, and MiniMax as providers.
+`opencode-hs` is a terminal AI coding agent that streams LLM responses token-by-token through a [brick](https://github.com/jtdaugherty/brick) TUI, backed by a type-safe tool system and SQLite session history. Supports OpenAI, Anthropic, and MiniMax as providers. Built for correctness and FP purity: `conduit` streaming for LLM responses, `STM` for concurrency, and a strongly-typed tool layer.
+
+See [SPEC.md](SPEC.md) for the architecture and [MILESTONES.md](MILESTONES.md) for the build plan.
 
 ## Install
 
