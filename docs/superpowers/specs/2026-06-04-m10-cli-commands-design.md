@@ -144,10 +144,14 @@ renderExportMarkdown :: Session -> [Message] -> Text  -- pure
   `exitFailure`; else `putStr . unpack $ renderExportMarkdown session msgs`.
 - `runConfigCheck cfg env`: for each provider in `[OpenAI, MiniMax, Anthropic]`,
   report `not configured` (no key), else probe via `streamerForProvider`: build a
-  minimal `LLMRequest` (one user `"ping"`, `reqMaxTokens = Just 1`, no tools),
-  `runResourceT` the streamer, take the first event — `StreamError e` → `FAIL`
-  with snippet, anything else → `OK`. Anthropic-with-key short-circuits to
-  `FAIL: not implemented until M11`. Print one line per provider.
+  minimal `LLMRequest` (one user `"ping"`, `reqMaxTokens = Just 1`, no tools,
+  `reqSystemPrompt = ""`), `runResourceT` the streamer, take the first event —
+  `StreamError e` → `FAIL` with snippet, anything else → `OK`. Anthropic-with-key
+  short-circuits to `FAIL: not implemented until M11`. Print one line per
+  provider. The probe's `reqModel` is a **per-provider default model** — the
+  `defaultModel cfg` model when its provider matches, else a fallback constant
+  (`"gpt-4o"` for OpenAI, `Config.defaultMiniMaxModel` for MiniMax) — so a user
+  who configured only a key (no model) doesn't get a spurious FAIL.
 
 ### 3. `OpenCode.Session`
 
