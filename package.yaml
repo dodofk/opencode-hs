@@ -81,6 +81,7 @@ library:
   exposed-modules:
     - OpenCode.App
     - OpenCode.Run
+    - OpenCode.CLI
     - OpenCode.App.Error
     - OpenCode.App.Types
     - OpenCode.Config
@@ -174,6 +175,7 @@ tests:
       - QuickCheck >= 2.14
       - temporary >= 1.3
     other-modules:
+      - OpenCode.CLISpec
       - OpenCode.ConfigSpec
       - OpenCode.DBSpec
       - OpenCode.LLM.MockSpec
