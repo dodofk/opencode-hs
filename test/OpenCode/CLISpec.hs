@@ -54,6 +54,8 @@ spec = do
       parseArgs ["frobnicate"] `shouldBe` Nothing
     it "rejects 'config' without a sub-subcommand" $
       parseArgs ["config"] `shouldBe` Nothing
+    it "parses '--version' as the Version command" $
+      parseArgs ["--version"] `shouldBe` Just Version
   describe "renderSessionList" $ do
     it "renders one row per session with model labels and a header" $ do
       let out = renderSessionList [sess1, sess2]

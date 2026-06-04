@@ -13,6 +13,7 @@ module OpenCode.CLI
   , renderExportMarkdown
   ) where
 
+import Control.Applicative ((<|>))
 import Data.Bifunctor (first)
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
@@ -21,7 +22,7 @@ import Data.Time (UTCTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Options.Applicative
   ( Parser, ParserInfo, ReadM, command, defaultPrefs, eitherReader
-  , execParserPure, fullDesc, getParseResult, header, help, helper, info
+  , execParserPure, flag', fullDesc, getParseResult, header, help, helper, info
   , long, metavar, option, optional, progDesc, strArgument, strOption
   , subparser, switch, (<**>)
   )
@@ -37,6 +38,7 @@ data Command
   | List
   | Export SessionId
   | ConfigCheck
+  | Version
   deriving stock (Show, Eq)
 
 -- | Options for the @run@ subcommand (and the bare-invocation default).
@@ -81,8 +83,14 @@ providerFromText = \case
 
 -- | Top-level parser info (program description + @--help@).
 commandParserInfo :: ParserInfo Command
-commandParserInfo = info (commandParser <**> helper)
+commandParserInfo = info (topLevelParser <**> helper)
   (fullDesc <> progDesc "A terminal AI coding agent" <> header "opencode-hs")
+
+topLevelParser :: Parser Command
+topLevelParser = versionFlag <|> commandParser
+
+versionFlag :: Parser Command
+versionFlag = flag' Version (long "version" <> help "Print version and exit")
 
 commandParser :: Parser Command
 commandParser = subparser

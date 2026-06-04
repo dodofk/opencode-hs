@@ -20,7 +20,9 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.Time (UTCTime (..), fromGregorian)
+import Data.Version (showVersion)
 import Options.Applicative (defaultPrefs, execParserPure, handleParseResult)
+import Paths_opencode_hs (version)
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.IO (hFlush, hPutStrLn, stderr, stdout)
@@ -74,6 +76,7 @@ dispatch cfg env = \case
   List        -> runList env
   Export sid  -> runExport env sid
   ConfigCheck -> runConfigCheck cfg env
+  Version     -> putStrLn (showVersion version)
 
 -- | Load config, open the DB, and build an 'AppEnv'; run the continuation.
 -- A config error is reported to stderr and the process exits non-zero.
