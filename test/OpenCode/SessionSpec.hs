@@ -260,9 +260,10 @@ spec = do
         `shouldBe` True
     it "fails when the MiniMax key is absent" $
       isLeft (streamerForProvider (cfgWith Nothing Nothing) MiniMax) `shouldBe` True
-    it "fails for Anthropic (not yet implemented)" $
-      isLeft (streamerForProvider (cfgWith (Just (ApiKey "k")) Nothing) Anthropic)
-        `shouldBe` True
+    it "fails when the Anthropic key is absent" $
+      isLeft (streamerForProvider (cfgWith Nothing Nothing) Anthropic) `shouldBe` True
+    it "returns a streamer when the Anthropic key is present" $
+      isRight (streamerForProvider cfgAnthropic Anthropic) `shouldBe` True
 
   where
     isToolCall (ToolCallPart _)     = True
@@ -316,6 +317,13 @@ cfgWith oa mm = Config
   { providers    = ProviderConfig
       { openaiKey = oa, anthropicKey = Nothing, minimaxKey = mm }
   , defaultModel = ModelId OpenAI "gpt-4o"
+  }
+
+cfgAnthropic :: Config
+cfgAnthropic = Config
+  { providers    = ProviderConfig
+      { openaiKey = Nothing, anthropicKey = Just (ApiKey "k"), minimaxKey = Nothing }
+  , defaultModel = ModelId Anthropic "claude-opus-4-5"
   }
 
 withFreshEnv :: (AppEnv -> IO a) -> IO a

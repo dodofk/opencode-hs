@@ -29,6 +29,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (ask, asks)
 import qualified OpenCode.Config as Config
 import qualified OpenCode.LLM.Mock as Mock
+import qualified OpenCode.LLM.Anthropic as Anthropic
 import qualified OpenCode.LLM.OpenAI as OpenAI
 import qualified Control.Concurrent.STM as STM
 import System.Environment (lookupEnv)
@@ -360,15 +361,17 @@ selectStreamer cfg = streamerForProvider cfg (provider (Config.defaultModel cfg)
 streamerForProvider :: Config.Config -> ProviderId -> Either AppError Streamer
 streamerForProvider cfg pid =
   case pid of
-    OpenAI    -> withKey (Config.openaiKey  pc) "OpenAI"  OpenAI.defaultOpenAI
-    MiniMax   -> withKey (Config.minimaxKey pc) "MiniMax" OpenAI.minimaxOpenAI
-    Anthropic -> Left (LLMError
-      "Anthropic streaming is not yet implemented; configure a MiniMax or OpenAI model")
+    OpenAI    -> withKey (Config.openaiKey  pc) "OpenAI"
+                   (OpenAI.streamOpenAI . OpenAI.defaultOpenAI)
+    MiniMax   -> withKey (Config.minimaxKey pc) "MiniMax"
+                   (OpenAI.streamOpenAI . OpenAI.minimaxOpenAI)
+    Anthropic -> withKey (Config.anthropicKey pc) "Anthropic"
+                   (Anthropic.streamAnthropic . Anthropic.defaultAnthropic)
   where
     pc = Config.providers cfg
-    withKey mKey label mkProvider = case mKey of
+    withKey mKey label mkStreamer = case mKey of
       Nothing  -> Left (LLMError ("no " <> label <> " API key configured"))
-      Just key -> Right (OpenAI.streamOpenAI (mkProvider key))
+      Just key -> Right (mkStreamer key)
 
 -- | Microseconds between mock chunks; tuned so the whole reply takes a few
 -- seconds — long enough to watch streaming and test Esc by hand.

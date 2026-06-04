@@ -16,6 +16,7 @@ module OpenCode.Config
     -- * Pure assembly (exported for white-box testing)
   , buildConfig
   , EnvOverride (..)
+  , defaultAnthropicModel
   , defaultMiniMaxModel
     -- * Internal YAML-shaped types (exported for white-box testing)
   , ConfigFile (..)
@@ -134,7 +135,11 @@ loadEnvVars = EnvOverride
 -- | The fallback model used when no model is specified and no provider key
 -- selects a more specific default (see 'pickDefaultModel').
 fallbackModel :: ModelId
-fallbackModel = ModelId { provider = Anthropic, model = "claude-opus-4-5" }
+fallbackModel = ModelId { provider = Anthropic, model = defaultAnthropicModel }
+
+-- | The Anthropic model used as the fallback default and for connectivity probes.
+defaultAnthropicModel :: Text
+defaultAnthropicModel = "claude-opus-4-5"
 
 -- | The MiniMax model used when @MINIMAX_API_KEY@ is set and no explicit
 -- default model is configured.

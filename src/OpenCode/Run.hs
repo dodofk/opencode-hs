@@ -38,7 +38,7 @@ import OpenCode.CLI
   , renderSessionList
   )
 import OpenCode.Config
-  ( Config (..), ProviderConfig (..), defaultMiniMaxModel, loadConfig )
+  ( Config (..), ProviderConfig (..), defaultAnthropicModel, defaultMiniMaxModel, loadConfig )
 import qualified OpenCode.DB as DB
 import OpenCode.LLM.Types (LLMRequest (..), Streamer)
 import OpenCode.Session
@@ -197,11 +197,9 @@ checkProvider cfg pid = do
         Anthropic -> anthropicKey pc
   status <- case mKey of
     Nothing -> pure "not configured"
-    Just _  -> case pid of
-      Anthropic -> pure "FAIL (not implemented until M11)"
-      _         -> case streamerForProvider cfg pid of
-        Left err       -> pure ("FAIL (" <> displayAppError err <> ")")
-        Right streamer -> probeProvider streamer (probeModel cfg pid)
+    Just _  -> case streamerForProvider cfg pid of
+      Left err       -> pure ("FAIL (" <> displayAppError err <> ")")
+      Right streamer -> probeProvider streamer (probeModel cfg pid)
   TIO.putStrLn (providerLabel pid <> ": " <> status)
 
 -- | Model to probe with: the configured default model when its provider
@@ -212,7 +210,7 @@ probeModel cfg pid
   | otherwise = case pid of
       OpenAI    -> "gpt-4o"
       MiniMax   -> defaultMiniMaxModel
-      Anthropic -> ""   -- never probed
+      Anthropic -> defaultAnthropicModel
 
 -- | Issue a minimal one-token request and inspect the first stream event.
 probeProvider :: Streamer -> Text -> IO Text
