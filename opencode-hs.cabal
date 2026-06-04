@@ -32,6 +32,7 @@ library
       OpenCode.Session
       OpenCode.Session.Events
       OpenCode.Session.Prompt
+      OpenCode.Session.Summarize
       OpenCode.Session.Title
       OpenCode.LLM.Anthropic
       OpenCode.LLM.Mock
@@ -164,6 +165,7 @@ test-suite opencode-hs-test
       OpenCode.RunSpec
       OpenCode.Session.EventsSpec
       OpenCode.Session.PromptSpec
+      OpenCode.Session.SummarizeSpec
       OpenCode.Session.TitleSpec
       OpenCode.SessionSpec
       OpenCode.TestEnv

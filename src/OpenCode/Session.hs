@@ -47,6 +47,7 @@ import qualified OpenCode.DB as DB
 import OpenCode.LLM.Types (LLMRequest (..), Streamer)
 import OpenCode.Session.Events (RunState (..), SessionEvent (..))
 import OpenCode.Session.Prompt (systemPrompt)
+import OpenCode.Session.Summarize (contextLimit, maybeSummarize)
 import OpenCode.Session.Title (generateTitle)
 import OpenCode.Tool.Types (ToolRegistry (..), someToolDefinition)
 import OpenCode.Types
@@ -414,12 +415,15 @@ processUserMessageWith streamer sid prompt = do
   liftIO (DB.insertMessage conn sid userMsg)
   -- 2. Load the full message history (user + any prior turns) and drive the loop.
   history <- liftIO (DB.getMessages conn sid)
-  _       <- agentic streamer sid history
+  mdl     <- asks (Config.defaultModel . envConfig)
+  let threshold  = (contextLimit mdl * 4) `div` 5
+      keepRecent = 6
+  history' <- maybeSummarize streamer mdl threshold keepRecent history
+  _        <- agentic streamer sid history'
   -- 3. On the first turn (history had only the user message we just inserted),
   --    generate a title and broadcast it. Non-fatal: a failed or empty result
   --    leaves the title untouched.
   when (length history == 1) $ do
-    mdl    <- asks (Config.defaultModel . envConfig)
     mTitle <- generateTitle streamer mdl prompt
     case mTitle of
       Just t  -> do
