@@ -122,6 +122,7 @@ agentic streamer sid history = go 0 history []
       | roundNum >= maxToolRounds = pure (reverse appended)
       | otherwise = do
           env <- ask
+          emitEvent (RoundStarted (roundNum + 1) maxToolRounds)
           emitEvent (RunStateChanged RunningLLM)
           let req    = buildRequest env soFar
               stream = streamer req

@@ -155,6 +155,20 @@ spec = do
 
   describe "agentic (with tool execution, multi-round)" $ do
 
+    it "emits RoundStarted for each round, 1-based, with the round cap" $
+      withTestEnv $ \env session -> do
+        let toolArgs = "{\"path\":\"/tmp/m12-round.txt\",\"content\":\"hi\"}"
+            round1 =
+              [ ToolCallStart "c1" "write_file"
+              , ToolCallArgDelta "c1" toolArgs
+              , ToolCallEnd "c1"
+              , StreamDone (Usage 1 1 Nothing Nothing) ]
+            round2 = [ TextDelta "done", StreamDone (Usage 1 1 Nothing Nothing) ]
+        streamer <- newScriptedStreamer [round1, round2]
+        _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        evts <- drainBChan (envEventChan env)
+        [ (c, t) | RoundStarted c t <- evts ] `shouldBe` [(1, 10), (2, 10)]
+
     it "executes a tool call and recurses for the next round" $
       withTestEnv $ \env session -> do
         let toolArgs = "{\"path\":\"/tmp/m6-test.txt\",\"content\":\"hi\"}"

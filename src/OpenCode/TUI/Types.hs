@@ -43,6 +43,7 @@ data AppState = AppState
   , asStatusLine       :: Text
   , asPartialText      :: Text
   , asPartialReasoning :: Text
+  , asRound            :: Maybe (Int, Int)
   , asEnv              :: AppEnv
   , asSessionId        :: SessionId
   }

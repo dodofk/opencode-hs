@@ -166,6 +166,13 @@ spec = do
       let st2 = applyEvent (RunStateChanged Idle) (applyEvent (PartialReasoning "x") st0)
       asPartialReasoning st2 `shouldBe` ""
 
+    it "RoundStarted sets asRound and Idle clears it" $ do
+      st0 <- stateWithInput ""
+      let st1 = applyEvent (RoundStarted 2 10) st0
+          st2 = applyEvent (RunStateChanged Idle) st1
+      asRound st1 `shouldBe` Just (2, 10)
+      asRound st2 `shouldBe` Nothing
+
   describe "startRun (forked agentic run)" $ do
 
     it "resets the abort flag synchronously before forking" $ do
@@ -202,6 +209,7 @@ stateWithInput t = do
     , asStatusLine       = "openai:gpt-4o"
     , asPartialText      = ""
     , asPartialReasoning = ""
+    , asRound            = Nothing
     , asEnv              = env
     , asSessionId        = sessionId sampleSession
     }

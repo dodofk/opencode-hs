@@ -191,6 +191,7 @@ initialState env session msgs = AppState
   , asStatusLine       = modelLabel (sessionModel session)
   , asPartialText      = ""
   , asPartialReasoning = ""
+  , asRound            = Nothing
   , asEnv              = env
   , asSessionId        = sessionId session
   }
@@ -246,8 +247,10 @@ applyEvent = \case
     { asRunState         = s
     , asPartialText      = if s == Idle then "" else asPartialText st
     , asPartialReasoning = if s == Idle then "" else asPartialReasoning st
+    , asRound            = if s == Idle then Nothing else asRound st
     }
   ErrorOccurred e    -> \st -> st { asMessages = asMessages st |> errorMessage e }
+  RoundStarted c t   -> \st -> st { asRound = Just (c, t) }
 
 -- | A transient, render-only assistant message carrying an error line. Not
 -- persisted, so a fixed synthetic id/timestamp is fine.

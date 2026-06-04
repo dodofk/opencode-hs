@@ -101,7 +101,14 @@ statusBar st =
   withAttr statusAttr $
     vLimit 1 $
       padRight Max (txt (asStatusLine st))
-        <+> txt (runStateLabel (asRunState st))
+        <+> txt (runStateLabel (asRunState st) <> roundSuffix (asRound st))
+
+roundSuffix :: Maybe (Int, Int) -> Text
+roundSuffix Nothing           = ""
+roundSuffix (Just (cur, tot)) = " · round " <> tshow cur <> "/" <> tshow tot
+
+tshow :: Int -> Text
+tshow = T.pack . show
 
 runStateLabel :: RunState -> Text
 runStateLabel = \case

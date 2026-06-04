@@ -122,6 +122,14 @@ spec = do
           pic = M.renderWidget Nothing (drawUI st) (80, 24)
       show pic `shouldNotContain` "ghostthought"
 
+  describe "status bar round indicator" $ do
+
+    it "shows round N/M when asRound is set" $ do
+      st0 <- mkState []
+      let st  = st0 { asRound = Just (2, 10) }
+          pic = M.renderWidget Nothing (drawUI st) (80, 24)
+      show pic `shouldContain` "round 2/10"
+
 -- ---------------------------------------------------------------------------
 -- Helpers
 -- ---------------------------------------------------------------------------
@@ -136,6 +144,7 @@ mkState msgs = do
     , asStatusLine       = "openai:gpt-4o"
     , asPartialText      = ""
     , asPartialReasoning = ""
+    , asRound            = Nothing
     , asEnv              = env
     , asSessionId        = sessionId sampleRenderSession
     }

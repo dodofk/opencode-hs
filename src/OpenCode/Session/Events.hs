@@ -37,4 +37,6 @@ data SessionEvent
       -- ^ An error to display to the user (transient; doesn't terminate the loop).
   | PartialReasoning Text
       -- ^ A streaming reasoning/thinking delta (live-only; never persisted).
+  | RoundStarted Int Int
+      -- ^ A new agentic round began: 1-based current round, max rounds.
   deriving stock (Show, Eq)
