@@ -205,11 +205,12 @@ toolUseBlock tc = object
   ]
 
 toolResultBlock :: ToolResult -> Value
-toolResultBlock tr = object
+toolResultBlock tr = object $
   [ "type"        .= ("tool_result" :: Text)
   , "tool_use_id" .= resultCallId tr
   , "content"     .= content tr
   ]
+  <> [ "is_error" .= True | isError tr ]   -- Anthropic flags failed tool results
 
 -- | Decode raw JSON-text tool arguments into a Value object for tool_use.input;
 -- a non-decodable blob falls back to an empty object.

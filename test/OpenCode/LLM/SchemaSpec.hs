@@ -172,7 +172,19 @@ spec = do
           Aeson.encode a `shouldSatisfy` lbsInfix "\"input\":{\"command\":\"ls\"}"
           Aeson.encode u `shouldSatisfy` lbsInfix "\"tool_use_id\":\"c1\""
           Aeson.encode u `shouldSatisfy` lbsInfix "\"type\":\"tool_result\""
+          Aeson.encode u `shouldNotSatisfy` lbsInfix "is_error"
         _ -> expectationFailure "expected assistant + user messages"
+
+    it "marks a failed tool result with is_error" $ do
+      let msgs =
+            [ Message (MessageId "m1") RoleAssistant
+                (NE.fromList
+                  [ ToolCallPart   (ToolCall "c1" "bash" (ToolArgs "{}"))
+                  , ToolResultPart (ToolResult "c1" "boom" True)
+                  ]) t0
+            ]
+      Aeson.encode (Aeson.toJSON (messagesToAnthropic msgs))
+        `shouldSatisfy` lbsInfix "\"is_error\":true"
 
 -- ---------------------------------------------------------------------------
 -- Fixtures
