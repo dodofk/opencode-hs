@@ -52,6 +52,7 @@ spec = do
   describe "renderSessionList" $ do
     it "renders one row per session with model labels and a header" $ do
       let out = renderSessionList [sess1, sess2]
+      length (T.lines out) `shouldBe` 3   -- header + 2 data rows, one newline each
       out `shouldSatisfy` T.isInfixOf "s-001"
       out `shouldSatisfy` T.isInfixOf "s-002"
       out `shouldSatisfy` T.isInfixOf "first"
