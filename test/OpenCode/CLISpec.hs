@@ -1,10 +1,12 @@
 module OpenCode.CLISpec (spec) where
 
 import Data.Either (isLeft)
+import qualified Data.Text as T
+import Data.Time (UTCTime (..), fromGregorian)
 import Test.Hspec
 
 import OpenCode.CLI
-import OpenCode.Types (ModelId (..), ProviderId (..), SessionId (..))
+import OpenCode.Types (ModelId (..), ProviderId (..), Session (..), SessionId (..))
 
 spec :: Spec
 spec = do
@@ -47,3 +49,24 @@ spec = do
       parseArgs ["frobnicate"] `shouldBe` Nothing
     it "rejects 'config' without a sub-subcommand" $
       parseArgs ["config"] `shouldBe` Nothing
+  describe "renderSessionList" $ do
+    it "renders one row per session with model labels and a header" $ do
+      let out = renderSessionList [sess1, sess2]
+      out `shouldSatisfy` T.isInfixOf "s-001"
+      out `shouldSatisfy` T.isInfixOf "s-002"
+      out `shouldSatisfy` T.isInfixOf "first"
+      out `shouldSatisfy` T.isInfixOf "second"
+      out `shouldSatisfy` T.isInfixOf "openai:gpt-4o"
+      out `shouldSatisfy` T.isInfixOf "minimax:MiniMax-M3"
+      out `shouldSatisfy` T.isInfixOf "ID"
+    it "renders a placeholder for an empty list" $
+      renderSessionList [] `shouldBe` "(no sessions)\n"
+
+t0 :: UTCTime
+t0 = UTCTime (fromGregorian 2026 6 4) 0
+
+sess1 :: Session
+sess1 = Session (SessionId "s-001") "first" (ModelId OpenAI "gpt-4o") t0
+
+sess2 :: Session
+sess2 = Session (SessionId "s-002") "second" (ModelId MiniMax "MiniMax-M3") t0

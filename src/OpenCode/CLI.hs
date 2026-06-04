@@ -9,11 +9,14 @@ module OpenCode.CLI
   , providerLabel
   , commandParserInfo
   , parseArgs
+  , renderSessionList
   ) where
 
 import Data.Bifunctor (first)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Time (UTCTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Options.Applicative
   ( Parser, ParserInfo, ReadM, command, defaultPrefs, eitherReader
   , execParserPure, fullDesc, getParseResult, header, help, helper, info
@@ -21,7 +24,7 @@ import Options.Applicative
   , subparser, switch, (<**>)
   )
 
-import OpenCode.Types (ModelId (..), ProviderId (..), SessionId (..))
+import OpenCode.Types (ModelId (..), ProviderId (..), Session (..), SessionId (..))
 
 -- | A parsed top-level command.
 data Command
@@ -117,3 +120,25 @@ sessionIdArg = SessionId <$> strArgument
 parseArgs :: [String] -> Maybe Command
 parseArgs [] = Just (Run defaultRunOpts)
 parseArgs as = getParseResult (execParserPure defaultPrefs commandParserInfo as)
+
+-- | A fixed-width table of sessions: @ID  TITLE  MODEL  CREATED@.
+renderSessionList :: [Session] -> Text
+renderSessionList [] = "(no sessions)\n"
+renderSessionList sessions = T.unlines (headerRow : map row sessions)
+  where
+    idW    = colWidth "ID"    (unSessionId . sessionId)
+    titleW = colWidth "TITLE" sessionTitle
+    modelW = colWidth "MODEL" (modelText . sessionModel)
+    colWidth h f = maximum (T.length h : map (T.length . f) sessions)
+    headerRow = rowCells "ID" "TITLE" "MODEL" "CREATED"
+    row s = rowCells (unSessionId (sessionId s)) (sessionTitle s)
+                     (modelText (sessionModel s)) (createdText (sessionCreated s))
+    rowCells a b c d =
+      pad idW a <> "  " <> pad titleW b <> "  " <> pad modelW c <> "  " <> d
+    pad w t = t <> T.replicate (max 0 (w - T.length t)) " "
+
+modelText :: ModelId -> Text
+modelText m = providerLabel (provider m) <> ":" <> model m
+
+createdText :: UTCTime -> Text
+createdText = T.pack . formatTime defaultTimeLocale "%Y-%m-%d %H:%M"
