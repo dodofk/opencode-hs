@@ -19,7 +19,7 @@ Acceptance for each is one or more concrete shell commands plus expected outcome
 | M8  | TUI: static layout                     | done      | `4e2aeab..`        |
 | M9  | TUI: streaming + tool inline + abort   | done      | `100700b..`        |
 | M10 | CLI commands                           | done      | `51f9e0a..`        |
-| M11 | Anthropic provider                     | pending   | —                  |
+| M11 | Anthropic provider                     | done      | `3576aa3..`        |
 | M12 | Hardening                              | pending   | —                  |
 
 MCP support is **dropped from v1** and will be revisited post-v1. The original M3 was split: OpenAI ships first as M4, Anthropic deferred to M11. The original M4 (tools) and M7 (TUI) were each split into two milestones. Context-window summarization, auto-title, SIGINT handling, `--version`, and README polish were deferred from earlier milestones into M12.
@@ -412,7 +412,24 @@ stream), and `config check` (live `minimax: OK`).
 
 ---
 
-## M11 — Anthropic provider
+## M11 — Anthropic provider — DONE
+
+Outcome: `OpenCode.LLM.Anthropic` implements the Messages API over SSE — an
+`AnthropicEvent` ADT decoded by dispatching on the payload `type`, a
+`processAnthropicEvent` accumulator (block-index→callId map + carried input
+tokens, clearing a tool block on `content_block_stop`), `interpretAnthropicStream`
+reusing `chunkSSELines`/`sseDataLine`, and `streamAnthropic` (`POST /v1/messages`,
+`x-api-key` + `anthropic-version`, non-2xx → `StreamError`). Request shaping lives
+in `OpenCode.LLM.Schema` (`buildAnthropicRequestBody` with required `max_tokens` +
+hoisted `system` + ephemeral cache_control, `messagesToAnthropic` putting tool
+results in a user turn with `is_error` on failures and decoding `ToolArgs` to an
+object, `toolToAnthropicSchema`). `streamerForProvider`'s `withKey` was
+generalized to an `ApiKey -> Streamer` builder so the `Anthropic` arm returns a
+real streamer; `config check` probes Anthropic for real; `Config.defaultAnthropicModel`
+backs the fallback model and the probe. Verified by fixture-replay tests mirroring
+`OpenAISpec` (text reassembly, fragmented tool call, error event) plus Schema unit
+tests; a live run needs `ANTHROPIC_API_KEY` (run as `stack run opencode-hs --
+run --model anthropic:claude-opus-4-5 --no-tui --prompt …`).
 
 **Goal**: Add the second provider, reusing the M4 streaming infrastructure.
 
