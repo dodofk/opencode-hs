@@ -82,7 +82,7 @@ commandParser = subparser
       (info (Run <$> runOptsParser <**> helper)
             (progDesc "Start the TUI, or run a single prompt headless"))
  <> command "list"
-      (info (pure List) (progDesc "List stored sessions"))
+      (info (pure List <**> helper) (progDesc "List stored sessions"))
  <> command "export"
       (info (Export <$> sessionIdArg <**> helper)
             (progDesc "Export a session as Markdown to stdout"))
@@ -93,7 +93,7 @@ commandParser = subparser
 configParser :: Parser Command
 configParser = subparser
   ( command "check"
-      (info (pure ConfigCheck) (progDesc "Probe each configured provider")) )
+      (info (pure ConfigCheck <**> helper) (progDesc "Probe each configured provider")) )
 
 runOptsParser :: Parser RunOpts
 runOptsParser = RunOpts

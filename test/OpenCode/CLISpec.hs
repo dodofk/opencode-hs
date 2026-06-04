@@ -27,6 +27,8 @@ spec = do
       parseArgs [] `shouldBe` Just (Run defaultRunOpts)
     it "parses 'list'" $
       parseArgs ["list"] `shouldBe` Just List
+    it "parses bare 'run' as the default RunOpts" $
+      parseArgs ["run"] `shouldBe` Just (Run defaultRunOpts)
     it "parses 'export <id>'" $
       parseArgs ["export", "abc"] `shouldBe` Just (Export (SessionId "abc"))
     it "parses 'config check'" $
@@ -43,3 +45,5 @@ spec = do
       parseArgs ["run", "--model", "garbage"] `shouldBe` Nothing
     it "rejects an unknown subcommand" $
       parseArgs ["frobnicate"] `shouldBe` Nothing
+    it "rejects 'config' without a sub-subcommand" $
+      parseArgs ["config"] `shouldBe` Nothing
