@@ -67,7 +67,7 @@ spec = do
       out `shouldSatisfy` T.isInfixOf "ID"
     it "renders a placeholder for an empty list" $
       renderSessionList [] `shouldBe` "(no sessions)\n"
-  describe "renderExportMarkdown" $
+  describe "renderExportMarkdown" $ do
     it "renders metadata, role headings, and fenced tool blocks" $ do
       let md = renderExportMarkdown sess1 [userMsg, assistantMsg]
       md `shouldSatisfy` T.isInfixOf "# first"
@@ -79,6 +79,11 @@ spec = do
       md `shouldSatisfy` T.isInfixOf "```bash"
       md `shouldSatisfy` T.isInfixOf "```result"
       md `shouldSatisfy` T.isInfixOf "file.txt"
+      md `shouldSatisfy` T.isInfixOf "{\"command\":\"ls\"}"
+    it "renders an ErrorPart as a blockquote" $ do
+      let md = renderExportMarkdown sess1
+                 [Message (MessageId "m3") RoleAssistant (ErrorPart "boom" :| []) t0]
+      md `shouldSatisfy` T.isInfixOf "> ⚠ boom"
 
 t0 :: UTCTime
 t0 = UTCTime (fromGregorian 2026 6 4) 0
