@@ -3,6 +3,7 @@ module OpenCode.SessionSpec (spec) where
 import qualified Brick.BChan as BChan
 import Control.Exception (bracket)
 import qualified Control.Concurrent.STM as STM
+import Data.Either (isLeft, isRight)
 import Control.Monad (when)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.IO.Class (liftIO)
@@ -19,7 +20,7 @@ import qualified OpenCode.DB as DB
 import OpenCode.DB (openDb)
 import OpenCode.LLM.Mock (staticStreamer, newScriptedStreamer)
 import OpenCode.LLM.Types (Streamer)
-import OpenCode.Session (agentic, createSession, loadSession, abortSession, processUserMessage, processUserMessageWith)
+import OpenCode.Session (agentic, createSession, loadSession, abortSession, processUserMessage, processUserMessageWith, streamerForProvider)
 import OpenCode.Session.Events (RunState (..), SessionEvent (..))
 import OpenCode.TestEnv (withTestEnv, drainBChan)
 import OpenCode.Tool.Registry (defaultBuiltinRegistry)
@@ -248,6 +249,19 @@ spec = do
             Text.unpack (content (head resultParts)) `shouldContain` "unknown tool"
           Left err -> expectationFailure (show err)
 
+  describe "streamerForProvider" $ do
+    it "returns a streamer when the OpenAI key is present" $
+      isRight (streamerForProvider (cfgWith (Just (ApiKey "k")) Nothing) OpenAI)
+        `shouldBe` True
+    it "fails when the OpenAI key is absent" $
+      isLeft (streamerForProvider (cfgWith Nothing Nothing) OpenAI) `shouldBe` True
+    it "returns a streamer when the MiniMax key is present" $
+      isRight (streamerForProvider (cfgWith Nothing (Just (ApiKey "k"))) MiniMax)
+        `shouldBe` True
+    it "fails for Anthropic (not yet implemented)" $
+      isLeft (streamerForProvider (cfgWith (Just (ApiKey "k")) Nothing) Anthropic)
+        `shouldBe` True
+
   where
     isToolCall (ToolCallPart _)     = True
     isToolCall _                    = False
@@ -294,6 +308,13 @@ abortAfterToolRound abortVar path _req = do
 -- ---------------------------------------------------------------------------
 -- Helper: env with an empty in-memory DB (no starter session)
 -- ---------------------------------------------------------------------------
+
+cfgWith :: Maybe ApiKey -> Maybe ApiKey -> Config
+cfgWith oa mm = Config
+  { providers    = ProviderConfig
+      { openaiKey = oa, anthropicKey = Nothing, minimaxKey = mm }
+  , defaultModel = ModelId OpenAI "gpt-4o"
+  }
 
 withFreshEnv :: (AppEnv -> IO a) -> IO a
 withFreshEnv action = bracket (openDb ":memory:") close $ \conn -> do

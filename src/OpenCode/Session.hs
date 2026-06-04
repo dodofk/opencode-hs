@@ -13,6 +13,8 @@ module OpenCode.Session
   , maxToolRounds
     -- * Abort
   , abortSession
+    -- * Provider selection
+  , streamerForProvider
     -- * Top-level entry points
   , processUserMessage
   , processUserMessageWith
@@ -345,14 +347,19 @@ processUserMessage sid prompt = do
       streamer <- either throwError pure (selectStreamer cfg)
       processUserMessageWith streamer sid prompt
 
--- | Pick a streaming provider for the configured default model. MiniMax and
--- OpenAI share the OpenAI-compatible wire format and differ only in base URL,
--- so both go through 'OpenAI.streamOpenAI'; they are distinguished by the
--- default model's provider id. The Anthropic streaming path is not yet
--- implemented.
+-- | Pick a streaming provider for the configured default model. Thin wrapper
+-- over 'streamerForProvider'.
 selectStreamer :: Config.Config -> Either AppError Streamer
-selectStreamer cfg =
-  case provider (Config.defaultModel cfg) of
+selectStreamer cfg = streamerForProvider cfg (provider (Config.defaultModel cfg))
+
+-- | Pick a streamer for a specific provider id, given the configured keys.
+-- MiniMax and OpenAI share the OpenAI-compatible wire format and differ only in
+-- base URL, so both go through 'OpenAI.streamOpenAI'. The Anthropic path is not
+-- yet implemented. Exported so @config check@ can probe a provider other than
+-- the default model's.
+streamerForProvider :: Config.Config -> ProviderId -> Either AppError Streamer
+streamerForProvider cfg pid =
+  case pid of
     OpenAI    -> withKey (Config.openaiKey  pc) "OpenAI"  OpenAI.defaultOpenAI
     MiniMax   -> withKey (Config.minimaxKey pc) "MiniMax" OpenAI.minimaxOpenAI
     Anthropic -> Left (LLMError
