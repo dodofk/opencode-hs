@@ -186,6 +186,25 @@ spec = do
       Aeson.encode (Aeson.toJSON (messagesToAnthropic msgs))
         `shouldSatisfy` lbsInfix "\"is_error\":true"
 
+    it "serialises multiple tool calls in one assistant message in order" $ do
+      let msgs =
+            [ Message (MessageId "m1") RoleAssistant
+                (NE.fromList
+                  [ ToolCallPart   (ToolCall "c1" "bash" (ToolArgs "{}"))
+                  , ToolResultPart (ToolResult "c1" "a" False)
+                  , ToolCallPart   (ToolCall "c2" "bash" (ToolArgs "{}"))
+                  , ToolResultPart (ToolResult "c2" "b" False)
+                  ]) t0
+            ]
+          result = messagesToAnthropic msgs
+      length result `shouldBe` 2          -- one assistant turn + one user turn
+      let assistantEnc = Aeson.encode (head result)
+          userEnc      = Aeson.encode (result !! 1)
+      assistantEnc `shouldSatisfy` lbsInfix "\"id\":\"c1\""
+      assistantEnc `shouldSatisfy` lbsInfix "\"id\":\"c2\""
+      userEnc `shouldSatisfy` lbsInfix "\"tool_use_id\":\"c1\""
+      userEnc `shouldSatisfy` lbsInfix "\"tool_use_id\":\"c2\""
+
 -- ---------------------------------------------------------------------------
 -- Fixtures
 -- ---------------------------------------------------------------------------
