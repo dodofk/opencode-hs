@@ -157,6 +157,7 @@ test-suite opencode-hs-test
       OpenCode.CLISpec
       OpenCode.ConfigSpec
       OpenCode.DBSpec
+      OpenCode.ErrorPathSpec
       OpenCode.LLM.AnthropicSpec
       OpenCode.LLM.MockSpec
       OpenCode.LLM.OpenAISpec
