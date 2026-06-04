@@ -3,6 +3,8 @@ module OpenCode.LLM.SchemaSpec (spec) where
 import Data.Aeson (Value (..), object, (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KM
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LBS
 import Data.List.NonEmpty qualified as NE
 import Data.Text (Text)
 import Data.Time (UTCTime (..), fromGregorian)
@@ -114,6 +116,64 @@ spec = do
       let body = buildOpenAIRequestBody sampleRequest { reqMaxTokens = Just 1024 }
       KM.lookup "max_tokens" (asKM body) `shouldBe` Just (Aeson.Number 1024)
 
+  describe "toolToAnthropicSchema" $
+    it "wraps a ToolDefinition as { name, description, input_schema }" $
+      toolToAnthropicSchema sampleToolDef
+        `shouldBe` object
+          [ "name"         .= ("bash" :: Text)
+          , "description"  .= ("Run a shell command" :: Text)
+          , "input_schema" .= sampleToolSchema
+          ]
+
+  describe "buildAnthropicRequestBody" $ do
+
+    it "sets stream:true and defaults max_tokens to 4096 when Nothing" $ do
+      let body = buildAnthropicRequestBody sampleRequest { reqMaxTokens = Nothing }
+      KM.lookup "stream" (asKM body) `shouldBe` Just (Bool True)
+      KM.lookup "max_tokens" (asKM body) `shouldBe` Just (Aeson.Number 4096)
+
+    it "honors an explicit max_tokens" $ do
+      let body = buildAnthropicRequestBody sampleRequest { reqMaxTokens = Just 256 }
+      KM.lookup "max_tokens" (asKM body) `shouldBe` Just (Aeson.Number 256)
+
+    it "hoists a non-empty system prompt with ephemeral cache_control" $ do
+      let body = buildAnthropicRequestBody sampleRequest { reqSystemPrompt = "be terse" }
+      case KM.lookup "system" (asKM body) of
+        Just (Array _) -> pure ()
+        other -> expectationFailure ("expected system array, got " <> show other)
+      Aeson.encode body `shouldSatisfy` lbsInfix "ephemeral"
+      Aeson.encode body `shouldSatisfy` lbsInfix "be terse"
+
+    it "omits system when the prompt is empty" $ do
+      let body = buildAnthropicRequestBody sampleRequest { reqSystemPrompt = "" }
+      KM.lookup "system" (asKM body) `shouldBe` Nothing
+
+  describe "messagesToAnthropic" $ do
+
+    it "converts a user text message into a content block" $ do
+      let msgs = [Message (MessageId "m1") RoleUser (NE.fromList [TextPart "hi"]) t0]
+      Aeson.encode (Aeson.toJSON (messagesToAnthropic msgs)) `shouldSatisfy` lbsInfix "\"role\":\"user\""
+
+    it "emits a bundled tool call+result as assistant tool_use then user tool_result" $ do
+      let msgs =
+            [ Message (MessageId "m1") RoleAssistant
+                (NE.fromList
+                  [ ToolCallPart   (ToolCall "c1" "bash" (ToolArgs "{\"command\":\"ls\"}"))
+                  , ToolResultPart (ToolResult "c1" "ok" False)
+                  ]) t0
+            ]
+          result = messagesToAnthropic msgs
+      length result `shouldBe` 2
+      case result of
+        (a : u : _) -> do
+          KM.lookup "role" (asKM a) `shouldBe` Just (String "assistant")
+          KM.lookup "role" (asKM u) `shouldBe` Just (String "user")
+          Aeson.encode a `shouldSatisfy` lbsInfix "\"type\":\"tool_use\""
+          Aeson.encode a `shouldSatisfy` lbsInfix "\"input\":{\"command\":\"ls\"}"
+          Aeson.encode u `shouldSatisfy` lbsInfix "\"tool_use_id\":\"c1\""
+          Aeson.encode u `shouldSatisfy` lbsInfix "\"type\":\"tool_result\""
+        _ -> expectationFailure "expected assistant + user messages"
+
 -- ---------------------------------------------------------------------------
 -- Fixtures
 -- ---------------------------------------------------------------------------
@@ -149,3 +209,6 @@ sampleRequest = LLMRequest
   , reqSystemPrompt = ""
   , reqMaxTokens    = Just 4096
   }
+
+lbsInfix :: LBS.ByteString -> LBS.ByteString -> Bool
+lbsInfix needle hay = LBS.toStrict needle `BS.isInfixOf` LBS.toStrict hay
