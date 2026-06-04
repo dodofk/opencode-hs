@@ -43,7 +43,7 @@ import qualified OpenCode.DB as DB
 import OpenCode.LLM.Types (LLMRequest (..), Streamer)
 import OpenCode.Session
   ( createSession, loadSession, processUserMessage, streamerForProvider )
-import OpenCode.Session.Events (RunState (Idle), SessionEvent (..))
+import OpenCode.Session.Events (SessionEvent (..))
 import qualified OpenCode.Tool.Types as Tool
 import OpenCode.TUI.App (startTUI)
 import OpenCode.Types
@@ -125,8 +125,12 @@ resolveSession cfg env ro = case roSession ro of
     either (dieT . displayAppError) pure result
 
 -- | Headless run: stream the assistant reply to stdout as it arrives. Reads
--- 'envEventChan' until the run emits @RunStateChanged Idle@ or the worker
--- finishes (the latter covers an early failure that emits no events).
+-- 'envEventChan' until the worker finishes, then flushes any buffered tail.
+-- Termination keys off the worker completing (via 'poll'), not off
+-- @RunStateChanged Idle@ — the agentic loop emits 'Idle' after every tool
+-- round, so keying on it would truncate a multi-round run (and could deadlock
+-- once the bounded channel fills). Draining continuously also keeps the channel
+-- from backing up the producer.
 runHeadless :: AppEnv -> SessionId -> Text -> IO ()
 runHeadless env sid prompt = do
   worker <- async (runAppM env (processUserMessage sid prompt))
@@ -141,13 +145,18 @@ runHeadless env sid prompt = do
     drain worker = do
       mev <- timeout 50000 (BChan.readBChan (envEventChan env))
       case mev of
-        Just (RunStateChanged Idle) -> pure ()
-        Just ev                     -> handleEv ev >> drain worker
-        Nothing                     -> do
+        Just ev -> handleEv ev >> drain worker
+        Nothing -> do
           done <- poll worker
           case done of
-            Just _  -> pure ()
-            Nothing -> drain worker
+            Nothing -> drain worker   -- still running; keep draining
+            Just _  -> flush          -- worker done; emit any buffered tail
+    -- Drain whatever is still buffered after the worker exits, without blocking.
+    flush = do
+      mev <- timeout 1000 (BChan.readBChan (envEventChan env))
+      case mev of
+        Just ev -> handleEv ev >> flush
+        Nothing -> pure ()
     handleEv ev = case ev of
       PartialText t   -> TIO.hPutStr stdout t >> hFlush stdout
       ToolStarted n   -> TIO.hPutStrLn stderr ("\x2699 " <> n)
