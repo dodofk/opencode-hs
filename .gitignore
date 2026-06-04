@@ -7,3 +7,18 @@ dist-newstyle/
 .hie/
 tags
 TAGS
+
+# OS / editor / tooling cruft
+.DS_Store
+
+# Agent harness + tooling scratch (not part of the project)
+.claude/
+.harness/
+.mavis/
+.opencode/
+
+# Local session report exports
+session-report-*.html
+
+# Vendored dependency copy used for local poking (not built by stack)
+sqlite-simple-0.4.19.0/

@@ -90,7 +90,6 @@ library:
     - OpenCode.Session
     - OpenCode.Session.Events
     - OpenCode.Session.Prompt
-    - OpenCode.MCP
     - OpenCode.LLM.Anthropic
     - OpenCode.LLM.Mock
     - OpenCode.LLM.OpenAI
@@ -120,45 +119,6 @@ executables:
     dependencies:
       - opencode-hs
 
-  m2-verify-schema:
-    main:          VerifySchema.hs
-    source-dirs:   verify
-    other-modules: []
-    dependencies:
-      - opencode-hs
-      - sqlite-simple
-
-  m5-acceptance:
-    main:          M5Acceptance.hs
-    source-dirs:   verify
-    other-modules: []
-    dependencies:
-      - opencode-hs
-      - aeson
-      - text
-
-  m6-acceptance:
-    main:         M6Acceptance.hs
-    source-dirs:  verify
-    other-modules: []
-    dependencies:
-      - opencode-hs
-      - brick
-      - mtl
-      - sqlite-simple
-      - stm
-      - text
-
-  m7-acceptance:
-    main:         M7Acceptance.hs
-    source-dirs:  verify
-    other-modules: []
-    dependencies:
-      - opencode-hs
-      - aeson
-      - brick
-      - stm
-      - text
 
 tests:
   opencode-hs-test:
