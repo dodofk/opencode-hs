@@ -151,10 +151,10 @@ processAnthropicEvent acc ev = case ev of
       _                               -> ([], acc)
   EvBlockStop idx ->
     case Map.lookup idx (accBlocks acc) of
-      Just cid -> ([ToolCallEnd cid], acc)
+      Just cid -> ([ToolCallEnd cid], acc { accBlocks = Map.delete idx (accBlocks acc) })
       Nothing  -> ([], acc)
   EvMessageDelta (Just out) -> ([StreamDone (Usage (accInput acc) out Nothing Nothing)], acc)
-  EvMessageDelta Nothing    -> ([], acc)
+  EvMessageDelta Nothing    -> ([], acc)   -- no usage available; StreamDone omitted
   EvMessageStop -> ([], acc)
   EvPing        -> ([], acc)
   EvError e     -> ([StreamError e], acc)

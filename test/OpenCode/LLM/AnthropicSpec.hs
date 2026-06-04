@@ -30,6 +30,9 @@ spec = do
       decodeEvent "{\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}"
         `shouldBe` Right (EvError "Overloaded")
 
+    it "returns EvOther for an unknown event type" $
+      decodeEvent "{\"type\":\"future_event\",\"data\":{}}" `shouldBe` Right EvOther
+
   describe "processAnthropicEvent" $ do
 
     it "emits ToolCallStart and records the block id" $
