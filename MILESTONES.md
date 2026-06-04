@@ -18,7 +18,7 @@ Acceptance for each is one or more concrete shell commands plus expected outcome
 | M7  | Tool System: execution + search        | done      | `1e0425d..`        |
 | M8  | TUI: static layout                     | done      | `4e2aeab..`        |
 | M9  | TUI: streaming + tool inline + abort   | done      | `100700b..`        |
-| M10 | CLI commands                           | pending   | —                  |
+| M10 | CLI commands                           | done      | `51f9e0a..`        |
 | M11 | Anthropic provider                     | pending   | —                  |
 | M12 | Hardening                              | pending   | —                  |
 
@@ -364,7 +364,25 @@ provider caught it.
 
 ---
 
-## M10 — CLI commands
+## M10 — CLI commands — DONE
+
+Outcome: a new pure `OpenCode.CLI` module holds the `optparse-applicative`
+grammar (`run`/`list`/`export`/`config check`), `parseModelId`
+(`provider:model` over openai/anthropic/minimax), a testable `parseArgs`, and
+the pure renderers `renderSessionList` (fixed-width table) and
+`renderExportMarkdown` (session → Markdown). `OpenCode.Run` builds config + DB +
+env once via `withAppEnv` and dispatches to
+`runRun`/`runList`/`runExport`/`runConfigCheck`; `runHeadless` streams
+`PartialText` to stdout under `--no-tui` (draining until the worker completes,
+since the agentic loop emits `Idle` between tool rounds), and `config check`
+probes each configured provider through the newly-exported
+`OpenCode.Session.streamerForProvider`. Bare `stack run` still opens the TUI.
+Anthropic parses but reports the M11 deferral; `--version`, SIGINT, and
+title auto-generation remain in M12. **Invocation note:** the project ships five
+executables, so the CLI is run as `stack run opencode-hs -- <cmd>` (or the
+installed `opencode-hs <cmd>`). Verified end-to-end: `--help`, `list`,
+`export <id>` and `export <bad-id>` (exit 1), `run --prompt … --no-tui` (mock
+stream), and `config check` (live `minimax: OK`).
 
 **Goal**: `optparse-applicative` driver for the documented subcommands.
 
