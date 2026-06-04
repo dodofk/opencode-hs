@@ -5,6 +5,8 @@ module OpenCode.DB
   , defaultDbPath
     -- * Schema
   , createSchema
+    -- * Errors
+  , DBCorruption (..)
     -- * Sessions
   , insertSession
   , getSession
@@ -17,6 +19,7 @@ module OpenCode.DB
   , newMessageId
   ) where
 
+import Control.Exception (Exception, throwIO)
 import Control.Monad (forM_, unless, when)
 import qualified Data.Aeson as Aeson
 import Data.Aeson (FromJSON, ToJSON)
@@ -50,6 +53,17 @@ import OpenCode.Types
   , Session (..)
   , SessionId (..)
   )
+
+-- ---------------------------------------------------------------------------
+-- Errors
+-- ---------------------------------------------------------------------------
+
+-- | A persisted row failed to decode — genuine corruption, surfaced as a
+-- catchable exception rather than a pure bottom.
+newtype DBCorruption = DBCorruption Text
+  deriving stock (Show)
+
+instance Exception DBCorruption
 
 -- ---------------------------------------------------------------------------
 -- Connection
@@ -145,7 +159,7 @@ getSession conn (SessionId sid) = do
     []                              -> pure Nothing
     ((rid, title, modelTx, ts):_)   ->
       case decodeJsonText modelTx of
-        Left err -> error ("OpenCode.DB.getSession: model_id decode failed: " <> err)
+        Left err -> throwIO (DBCorruption (Text.pack ("getSession: model_id decode failed: " <> err)))
         Right m  -> pure (Just (Session (SessionId rid) title m ts))
 
 -- | List all sessions, newest first.
@@ -155,11 +169,11 @@ listSessions conn = do
     "SELECT id, title, model_id, created_at \
     \FROM sessions ORDER BY created_at DESC"
     :: IO [(Text, Text, Text, UTCTime)]
-  pure (map toSession rows)
+  mapM toSession rows
   where
     toSession (sid, title, modelTx, ts) = case decodeJsonText modelTx of
-      Right m  -> Session (SessionId sid) title m ts
-      Left err -> error ("OpenCode.DB.listSessions: model_id decode failed: " <> err)
+      Right m  -> pure (Session (SessionId sid) title m ts)
+      Left err -> throwIO (DBCorruption (Text.pack ("listSessions: model_id decode failed: " <> err)))
 
 -- | Insert a message belonging to the given session. Caller supplies the id;
 -- use 'newMessageId' to mint one.
@@ -183,18 +197,18 @@ getMessages conn (SessionId sid) = do
     \ORDER BY created_at ASC, id ASC"
     (Only sid)
     :: IO [(Text, Text, Text, UTCTime)]
-  pure (map toMessage rows)
+  mapM toMessage rows
   where
-    toMessage (mid, roleTx, partsTx, ts) =
-      let role  = case textToRole roleTx of
-            Right r  -> r
-            Left err -> error ("OpenCode.DB.getMessages: role decode: " <> err)
-          parts = case decodeJsonText partsTx :: Either String [MessagePart] of
-            Right ps -> case NE.nonEmpty ps of
-              Just ne -> ne
-              Nothing -> error "OpenCode.DB.getMessages: empty parts list"
-            Left err -> error ("OpenCode.DB.getMessages: parts decode: " <> err)
-      in Message (MessageId mid) role parts ts
+    toMessage (mid, roleTx, partsTx, ts) = do
+      role <- case textToRole roleTx of
+        Right r  -> pure r
+        Left err -> throwIO (DBCorruption (Text.pack ("getMessages: role decode: " <> err)))
+      parts <- case decodeJsonText partsTx :: Either String [MessagePart] of
+        Right ps -> case NE.nonEmpty ps of
+          Just ne -> pure ne
+          Nothing -> throwIO (DBCorruption "getMessages: empty parts list")
+        Left err -> throwIO (DBCorruption (Text.pack ("getMessages: parts decode: " <> err)))
+      pure (Message (MessageId mid) role parts ts)
 
 -- | Default location for the sessions database, per XDG.
 -- On Linux/macOS: @$HOME/.local/share/opencode-hs/sessions.db@.

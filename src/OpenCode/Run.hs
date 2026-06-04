@@ -8,6 +8,7 @@ module OpenCode.Run
   ( runApp
   , armOnce
   , onSigInt
+  , renderDbError
   ) where
 
 import qualified Brick.BChan as BChan
@@ -16,7 +17,8 @@ import qualified Conduit
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.Async (async, poll, waitCatch)
 import qualified Control.Concurrent.STM as STM
-import Control.Exception (SomeException, try)
+import Control.Exception (Handler (Handler), SomeException, catches, try)
+import Database.SQLite.Simple (SQLError (..))
 import Control.Monad (void, when)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Maybe (fromMaybe)
@@ -74,7 +76,11 @@ runApp registry = do
   cmd  <- case args of
     [] -> pure (Run defaultRunOpts)
     _  -> handleParseResult (execParserPure defaultPrefs commandParserInfo args)
-  withAppEnv registry (\cfg env -> dispatch cfg env cmd)
+  withAppEnv registry $ \cfg env ->
+    dispatch cfg env cmd `catches`
+      [ Handler (\(e :: SQLError) -> dieT (renderDbError e))
+      , Handler (\(DB.DBCorruption m) -> dieT ("database error: " <> m))
+      ]
 
 dispatch :: Config -> AppEnv -> Command -> IO ()
 dispatch cfg env = \case
@@ -276,6 +282,10 @@ onSigInt env armed = do
 -- ---------------------------------------------------------------------------
 -- helpers
 -- ---------------------------------------------------------------------------
+
+-- | A clean, user-facing one-liner for a SQLite failure — no backtrace.
+renderDbError :: SQLError -> Text
+renderDbError e = "database error: " <> sqlErrorDetails e
 
 dieT :: Text -> IO a
 dieT msg = do

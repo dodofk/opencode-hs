@@ -144,18 +144,13 @@ agentic streamer sid history = go 0 history []
                   emitEvent (RunStateChanged Idle)
                   pure (reverse (m : appended))
             else do
-              -- A provider HTTP error arrives as a StreamError *event*, not an
-              -- exception; surface each one so a failed round is visible rather
-              -- than a silent flip back to idle.
-              let errs = collectErrors events
-              mapM_ (emitEvent . ErrorOccurred) errs
               mResult <- buildAssistantMessage events
               case mResult of
                 Nothing -> do
                   -- No text, no tool call, and no error: e.g. a 200 with empty
                   -- content (a reasoning model that streamed only thinking).
                   -- Say so on the first round instead of looking frozen.
-                  when (roundNum == 0 && null errs && not (hasReasoning events)) $
+                  when (roundNum == 0 && null (collectErrors events) && not (hasReasoning events)) $
                     emitEvent (ErrorOccurred emptyResponseMessage)
                   emitEvent (RunStateChanged Idle)
                   pure (reverse appended)
@@ -190,10 +185,11 @@ buildRequest env history = LLMRequest
 buildAssistantMessage :: [StreamEvent] -> AppM (Maybe (Message, Bool))
 buildAssistantMessage events = do
   let textParts = collectText events
+      errParts  = [ErrorPart e | StreamError e <- events]
       toolCalls = collectToolCalls events
   toolPairs <- mapM executeOne toolCalls
   let toolParts = concatMap (\(callPart, resultPart) -> [callPart, resultPart]) toolPairs
-      parts     = textParts ++ toolParts
+      parts     = textParts ++ toolParts ++ errParts
       ranTool   = not (null toolPairs)
   case NE.nonEmpty parts of
     Nothing -> pure Nothing

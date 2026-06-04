@@ -133,15 +133,26 @@ spec = do
 
   describe "agentic (error surfacing)" $ do
 
-    it "surfaces a provider StreamError as an ErrorOccurred event, then Idle" $
+    it "persists a provider StreamError as an ErrorPart, no transient ErrorOccurred" $
       withTestEnv $ \env session -> do
-        -- An HTTP 4xx/5xx from the provider arrives as stream data, not an
-        -- exception; the loop must not swallow it into a silent empty round.
         let streamer = staticStreamer [StreamError "minimax: 429: rate limited"]
         _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
         evts <- drainBChan (envEventChan env)
-        [m | ErrorOccurred m <- evts] `shouldBe` ["minimax: 429: rate limited"]
+        [m | ErrorOccurred m <- evts] `shouldBe` []
+        stored <- DB.getMessages (envDb env) (sessionId session)
+        let parts = concatMap (NE.toList . msgParts) stored
+        [e | ErrorPart e <- parts] `shouldBe` ["minimax: 429: rate limited"]
         [s | RunStateChanged s <- evts] `shouldSatisfy` endsWith Idle
+
+    it "persists partial text alongside a mid-stream error" $
+      withTestEnv $ \env session -> do
+        let streamer = staticStreamer
+              [ TextDelta "partial answer", StreamError "connection reset by peer" ]
+        _ <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        stored <- DB.getMessages (envDb env) (sessionId session)
+        let parts = concatMap (NE.toList . msgParts) stored
+        [t | TextPart t  <- parts] `shouldBe` ["partial answer"]
+        [e | ErrorPart e <- parts] `shouldBe` ["connection reset by peer"]
 
     it "surfaces an empty first-round response as an ErrorOccurred event" $
       withTestEnv $ \env session -> do

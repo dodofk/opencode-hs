@@ -204,6 +204,7 @@ test-suite opencode-hs-test
     , conduit >=1.3.5
     , conduit-extra >=1.3
     , containers >=0.6
+    , direct-sqlite
     , directory >=1.3
     , fast-logger >=3.2
     , filepath >=1.4

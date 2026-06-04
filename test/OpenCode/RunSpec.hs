@@ -1,10 +1,13 @@
 module OpenCode.RunSpec (spec) where
 
 import Control.Concurrent.STM (atomically, newTVarIO, readTVarIO)
+import qualified Data.Text as T
+import Database.SQLite.Simple (SQLError (..))
+import Database.SQLite3 (Error (ErrorBusy))
 import Test.Hspec
 
 import OpenCode.App.Types (AppEnv (..))
-import OpenCode.Run (armOnce, onSigInt)
+import OpenCode.Run (armOnce, onSigInt, renderDbError)
 import OpenCode.TestEnv (newDummyEnv)
 
 spec :: Spec
@@ -23,3 +26,8 @@ spec = do
       armed <- newTVarIO False
       onSigInt env armed
       readTVarIO (envAbort env) `shouldReturn` True
+
+  describe "renderDbError" $
+    it "produces a clean database-error line" $ do
+      let e = SQLError ErrorBusy "database is locked" ""
+      renderDbError e `shouldSatisfy` T.isInfixOf "database error"
