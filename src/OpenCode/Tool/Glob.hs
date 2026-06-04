@@ -112,12 +112,14 @@ readGitignore root = do
         [ stripTrailingSlash line
         | line <- lines contents
         , not (null line)
-        , head line /= '#'
+        , not (isComment line)
         ]
   where
-    stripTrailingSlash s
-      | not (null s) && last s == '/' = init s
-      | otherwise                     = s
+    isComment ('#' : _) = True
+    isComment _         = False
+    stripTrailingSlash s = case reverse s of
+      ('/' : rest) -> reverse rest
+      _            -> s
 
 -- | Does the path's first segment match any .gitignore prefix?
 isIgnored :: [String] -> FilePath -> Bool

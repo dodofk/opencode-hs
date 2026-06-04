@@ -50,11 +50,20 @@ chunkSSELines = loop BS.empty
     -- Split a buffer into (complete lines, residual after the last \n).
     breakLines :: ByteString -> ([ByteString], ByteString)
     breakLines b = case BSC.split '\n' b of
-      []   -> ([], BS.empty)
-      [x]  -> ([], x)
-      xs   -> (map stripCR (init xs), last xs)
+      []  -> ([], BS.empty)
+      [x] -> ([], x)
+      xs  -> case unsnoc xs of
+               Just (complete, lastLine) -> (map stripCR complete, lastLine)
+               Nothing                   -> ([], BS.empty)   -- unreachable: xs has >= 2 elems
 
     stripCR :: ByteString -> ByteString
-    stripCR bs
-      | not (BS.null bs) && BS.last bs == 13 = BS.init bs
-      | otherwise                            = bs
+    stripCR bs = case BS.unsnoc bs of
+      Just (rest, 13) -> rest
+      _               -> bs
+
+-- | Total split-last for lists (base 4.18 has no Data.List.unsnoc).
+unsnoc :: [a] -> Maybe ([a], a)
+unsnoc = foldr step Nothing
+  where
+    step x Nothing        = Just ([], x)
+    step x (Just (xs, e)) = Just (x : xs, e)

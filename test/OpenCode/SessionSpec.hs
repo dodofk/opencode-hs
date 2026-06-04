@@ -20,7 +20,7 @@ import qualified OpenCode.DB as DB
 import OpenCode.DB (openDb)
 import OpenCode.LLM.Mock (staticStreamer, newScriptedStreamer)
 import OpenCode.LLM.Types (Streamer)
-import OpenCode.Session (agentic, createSession, loadSession, abortSession, processUserMessage, processUserMessageWith, streamerForProvider)
+import OpenCode.Session (agentic, createSession, loadSession, abortSession, processUserMessageWith, streamerForProvider)
 import OpenCode.Session.Events (RunState (..), SessionEvent (..))
 import OpenCode.TestEnv (withTestEnv, drainBChan)
 import OpenCode.Tool.Registry (defaultBuiltinRegistry)
@@ -245,11 +245,11 @@ spec = do
 
     it "abortSession sets the envAbort flag" $
       withTestEnv $ \env _session -> do
-        before <- STM.readTVarIO (envAbort env)
-        before `shouldBe` False
+        flagBefore <- STM.readTVarIO (envAbort env)
+        flagBefore `shouldBe` False
         _ <- runExceptT $ runReaderT abortSession env
-        after <- STM.readTVarIO (envAbort env)
-        after `shouldBe` True
+        flagAfter <- STM.readTVarIO (envAbort env)
+        flagAfter `shouldBe` True
 
   describe "processUserMessage" $ do
 

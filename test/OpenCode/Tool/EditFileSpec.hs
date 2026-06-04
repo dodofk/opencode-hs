@@ -28,8 +28,8 @@ spec = describe "editFileTool" $ do
           Text.unpack diff `shouldContain` "-"
           Text.unpack diff `shouldContain` "+"
         Left err   -> expectationFailure (show err)
-      after <- TIO.readFile path
-      after `shouldBe` "alpha\nBETA\ngamma\n"
+      fileAfter <- TIO.readFile path
+      fileAfter `shouldBe` "alpha\nBETA\ngamma\n"
 
   it "errors when the old string is not found" $
     withSystemTempDirectory "ef" $ \dir -> do
@@ -54,8 +54,8 @@ spec = describe "editFileTool" $ do
       let path = dir </> "f.txt"
       TIO.writeFile path "x\nx\n"
       _ <- runEdit (EditFileInput path "x" "y")   -- ambiguous; should not write
-      after <- TIO.readFile path
-      after `shouldBe` "x\nx\n"
+      fileAfter <- TIO.readFile path
+      fileAfter `shouldBe` "x\nx\n"
 
 -- ---------------------------------------------------------------------------
 -- Helper

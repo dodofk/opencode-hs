@@ -15,7 +15,8 @@ ghc-options:
   - -Wincomplete-record-updates
   - -Wincomplete-uni-patterns
   - -Wmissing-export-lists
-  - -Wno-unused-top-binds   # relax for skeletons; tighten per-module later
+  - -Wno-unused-top-binds
+  - -Werror
 
 language: GHC2021
 

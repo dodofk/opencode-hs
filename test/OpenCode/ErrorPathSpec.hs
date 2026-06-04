@@ -36,7 +36,7 @@ spec = describe "error paths" $ do
       stored <- DB.getMessages (envDb env) (sessionId session)
       msgRole (head stored) `shouldBe` RoleUser
       let parts = concatMap (NE.toList . msgParts) stored
-      any (\p -> case p of ErrorPart e -> "401" `T.isInfixOf` e; _ -> False) parts
+      any (\case ErrorPart e -> "401" `T.isInfixOf` e; _ -> False) parts
         `shouldBe` True
 
   it "(b) tool failure mid-loop: round 1 isError, loop still runs round 2" $
@@ -81,5 +81,5 @@ spec = describe "error paths" $ do
       stored <- DB.getMessages (envDb env) (sessionId session)
       let parts = concatMap (NE.toList . msgParts) stored
       ("partial answer" `elem` [t | TextPart t <- parts]) `shouldBe` True
-      any (\p -> case p of ErrorPart e -> "connection reset" `T.isInfixOf` e; _ -> False) parts
+      any (\case ErrorPart e -> "connection reset" `T.isInfixOf` e; _ -> False) parts
         `shouldBe` True

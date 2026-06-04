@@ -15,6 +15,7 @@ module OpenCode.CLI
 
 import Control.Applicative ((<|>))
 import Data.Bifunctor (first)
+import Data.List (foldl')
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -142,7 +143,7 @@ renderSessionList sessions = T.unlines (headerRow : map row sessions)
     idW    = colWidth "ID"    (unSessionId . sessionId)
     titleW = colWidth "TITLE" sessionTitle
     modelW = colWidth "MODEL" (modelText . sessionModel)
-    colWidth h f = maximum (T.length h : map (T.length . f) sessions)
+    colWidth h f = foldl' max (T.length h) (map (T.length . f) sessions)
     headerRow = rowCells "ID" "TITLE" "MODEL" "CREATED"
     row s = rowCells (unSessionId (sessionId s)) (sessionTitle s)
                      (modelText (sessionModel s)) (createdText (sessionCreated s))
