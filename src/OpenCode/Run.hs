@@ -6,14 +6,18 @@
 -- import cycle.
 module OpenCode.Run
   ( runApp
+  , armOnce
+  , onSigInt
   ) where
 
 import qualified Brick.BChan as BChan
 import Conduit ((.|))
 import qualified Conduit
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.Async (async, poll, waitCatch)
 import qualified Control.Concurrent.STM as STM
 import Control.Exception (SomeException, try)
+import Control.Monad (void, when)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -24,8 +28,10 @@ import Data.Version (showVersion)
 import Options.Applicative (defaultPrefs, execParserPure, handleParseResult)
 import Paths_opencode_hs (version)
 import System.Environment (getArgs)
-import System.Exit (exitFailure)
+import System.Exit (ExitCode (ExitFailure), exitFailure)
 import System.IO (hFlush, hPutStrLn, stderr, stdout)
+import System.Posix.Process (exitImmediately)
+import System.Posix.Signals (Handler (Catch), installHandler, sigINT)
 import System.Timeout (timeout)
 
 import OpenCode.App (AppEnv (..), runAppM)
@@ -99,6 +105,8 @@ withAppEnv registry k = do
             , envEventChan = chan
             , envAbort     = abortVar
             }
+      armed <- STM.newTVarIO False
+      _ <- installHandler sigINT (Catch (onSigInt env armed)) Nothing
       k cfg env
 
 -- ---------------------------------------------------------------------------
@@ -239,6 +247,30 @@ pingMessage = Message
   , msgParts   = TextPart "ping" :| []
   , msgCreated = UTCTime (fromGregorian 1970 1 1) 0
   }
+
+-- ---------------------------------------------------------------------------
+-- SIGINT handling
+-- ---------------------------------------------------------------------------
+
+-- | Atomically claim the one-shot arm. Returns 'True' exactly once (the first
+-- caller), 'False' on every later call. Pure STM so it is unit-testable.
+armOnce :: STM.TVar Bool -> STM.STM Bool
+armOnce armed = do
+  already <- STM.readTVar armed
+  if already
+    then pure False
+    else STM.writeTVar armed True >> pure True
+
+-- | SIGINT handler: request a cooperative abort (same flag as Esc/headless),
+-- and — on the first signal only — fork a 5-second hard-exit timer so a wedged
+-- run can't trap the user. A second SIGINT just re-sets abort.
+onSigInt :: AppEnv -> STM.TVar Bool -> IO ()
+onSigInt env armed = do
+  firstTime <- STM.atomically $ do
+    STM.writeTVar (envAbort env) True
+    armOnce armed
+  when firstTime $
+    void $ forkIO (threadDelay 5000000 >> exitImmediately (ExitFailure 130))
 
 -- ---------------------------------------------------------------------------
 -- helpers
