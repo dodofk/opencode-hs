@@ -35,4 +35,6 @@ data SessionEvent
       -- ^ The session's 'RunState' transitioned.
   | ErrorOccurred Text
       -- ^ An error to display to the user (transient; doesn't terminate the loop).
+  | PartialReasoning Text
+      -- ^ A streaming reasoning/thinking delta (live-only; never persisted).
   deriving stock (Show, Eq)

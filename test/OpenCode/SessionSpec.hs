@@ -114,6 +114,23 @@ spec = do
         evts <- drainBChan (envEventChan env)
         [t | PartialText t <- evts] `shouldBe` ["Hel", "lo"]
 
+    it "emits PartialReasoning for each ReasoningDelta during the stream" $
+      withTestEnv $ \env session -> do
+        let streamer = staticStreamer
+              [ ReasoningDelta "thinking", TextDelta "hi"
+              , StreamDone (Usage 1 1 Nothing Nothing) ]
+        _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        evts <- drainBChan (envEventChan env)
+        [t | PartialReasoning t <- evts] `shouldBe` ["thinking"]
+
+    it "does not surface an empty-response error when the round produced reasoning" $
+      withTestEnv $ \env session -> do
+        let streamer = staticStreamer
+              [ ReasoningDelta "just thinking", StreamDone (Usage 0 0 Nothing Nothing) ]
+        _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        evts <- drainBChan (envEventChan env)
+        [() | ErrorOccurred _ <- evts] `shouldBe` []
+
   describe "agentic (error surfacing)" $ do
 
     it "surfaces a provider StreamError as an ErrorOccurred event, then Idle" $

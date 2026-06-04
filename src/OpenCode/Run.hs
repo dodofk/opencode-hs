@@ -169,10 +169,11 @@ runHeadless env sid prompt = do
         Just ev -> handleEv ev >> flush
         Nothing -> pure ()
     handleEv ev = case ev of
-      PartialText t   -> TIO.hPutStr stdout t >> hFlush stdout
-      ToolStarted n   -> TIO.hPutStrLn stderr ("\x2699 " <> n)
-      ErrorOccurred e -> TIO.hPutStrLn stderr e
-      _               -> pure ()
+      PartialText t      -> TIO.hPutStr stdout t >> hFlush stdout
+      PartialReasoning r -> TIO.hPutStr stderr r >> hFlush stderr
+      ToolStarted n      -> TIO.hPutStrLn stderr ("\x2699 " <> n)
+      ErrorOccurred e    -> TIO.hPutStrLn stderr e
+      _                  -> pure ()
 
 -- ---------------------------------------------------------------------------
 -- list / export

@@ -185,13 +185,14 @@ chatScroll = M.viewportScroll ChatViewport
 -- | Build the initial UI state from the environment, session, and history.
 initialState :: AppEnv -> Session -> [Message] -> AppState
 initialState env session msgs = AppState
-  { asMessages    = Seq.fromList msgs
-  , asInput       = emptyEditor
-  , asRunState    = Idle
-  , asStatusLine  = modelLabel (sessionModel session)
-  , asPartialText = ""
-  , asEnv         = env
-  , asSessionId   = sessionId session
+  { asMessages         = Seq.fromList msgs
+  , asInput            = emptyEditor
+  , asRunState         = Idle
+  , asStatusLine       = modelLabel (sessionModel session)
+  , asPartialText      = ""
+  , asPartialReasoning = ""
+  , asEnv              = env
+  , asSessionId        = sessionId session
   }
 
 emptyEditor :: E.Editor Text ResourceName
@@ -236,15 +237,17 @@ applyEnter msg st
 -- state. Exported for testing. Never reads 'asEnv'/'asSessionId'.
 applyEvent :: SessionEvent -> AppState -> AppState
 applyEvent = \case
-  MessageAppended m -> \st -> st { asMessages = asMessages st |> m, asPartialText = "" }
-  PartialText t     -> \st -> st { asPartialText = asPartialText st <> t }
-  ToolStarted n     -> \st -> st { asRunState = RunningTool n }
-  ToolFinished _ _  -> id
-  RunStateChanged s -> \st -> st
-    { asRunState    = s
-    , asPartialText = if s == Idle then "" else asPartialText st
+  MessageAppended m  -> \st -> st { asMessages = asMessages st |> m, asPartialText = "", asPartialReasoning = "" }
+  PartialText t      -> \st -> st { asPartialText = asPartialText st <> t }
+  PartialReasoning t -> \st -> st { asPartialReasoning = asPartialReasoning st <> t }
+  ToolStarted n      -> \st -> st { asRunState = RunningTool n }
+  ToolFinished _ _   -> id
+  RunStateChanged s  -> \st -> st
+    { asRunState         = s
+    , asPartialText      = if s == Idle then "" else asPartialText st
+    , asPartialReasoning = if s == Idle then "" else asPartialReasoning st
     }
-  ErrorOccurred e   -> \st -> st { asMessages = asMessages st |> errorMessage e }
+  ErrorOccurred e    -> \st -> st { asMessages = asMessages st |> errorMessage e }
 
 -- | A transient, render-only assistant message carrying an error line. Not
 -- persisted, so a fixed synthetic id/timestamp is fine.

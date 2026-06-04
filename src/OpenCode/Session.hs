@@ -152,7 +152,7 @@ agentic streamer sid history = go 0 history []
                   -- No text, no tool call, and no error: e.g. a 200 with empty
                   -- content (a reasoning model that streamed only thinking).
                   -- Say so on the first round instead of looking frozen.
-                  when (roundNum == 0 && null errs) $
+                  when (roundNum == 0 && null errs && not (hasReasoning events)) $
                     emitEvent (ErrorOccurred emptyResponseMessage)
                   emitEvent (RunStateChanged Idle)
                   pure (reverse appended)
@@ -224,8 +224,9 @@ consumeStream chan abortVar = loop []
         Nothing  -> pure (reverse acc, False)
         Just evt -> do
           case evt of
-            TextDelta t -> liftIO (BChan.writeBChan chan (PartialText t))
-            _           -> pure ()
+            TextDelta t      -> liftIO (BChan.writeBChan chan (PartialText t))
+            ReasoningDelta t -> liftIO (BChan.writeBChan chan (PartialReasoning t))
+            _                -> pure ()
           aborted <- liftIO (STM.readTVarIO abortVar)
           if aborted
             then pure (reverse (evt : acc), True)
@@ -323,6 +324,11 @@ collectText events =
 -- silent non-response.
 collectErrors :: [StreamEvent] -> [Text]
 collectErrors events = [e | StreamError e <- events]
+
+-- | True if any event is a reasoning delta (used to suppress the empty-response
+-- message when a round streamed only thinking).
+hasReasoning :: [StreamEvent] -> Bool
+hasReasoning events = not (null [() | ReasoningDelta _ <- events])
 
 -- | Surfaced when the first round produces no text, no tool call, and no error.
 emptyResponseMessage :: Text

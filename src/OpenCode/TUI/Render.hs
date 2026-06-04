@@ -78,8 +78,14 @@ drawUI st = [chat <=> statusBar st <=> inputBox st]
   where
     chat =
       viewport ChatViewport Vertical $
-        vBox (map renderMessage (toList (asMessages st)) <> inflight)
-    inflight
+        vBox (map renderMessage (toList (asMessages st)) <> reasoningBlock <> partialBlock)
+    reasoningBlock
+      | asRunState st /= Idle && not (T.null (asPartialReasoning st)) =
+          [ withAttr streamingAttr (txt "💭 thinking")
+              <=> padLeft (Pad 2) (withAttr streamingAttr (safeWrap (asPartialReasoning st)))
+          ]
+      | otherwise = []
+    partialBlock
       | asRunState st /= Idle && not (T.null (asPartialText st)) =
           [ withAttr assistantAttr (txt (rolePrefix RoleAssistant))
               <=> padLeft (Pad 2) (withAttr streamingAttr (safeWrap (asPartialText st)))

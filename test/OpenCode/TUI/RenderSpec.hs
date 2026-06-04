@@ -110,6 +110,18 @@ spec = do
           pic = M.renderWidget Nothing (drawUI st) (80, 24)
       show pic `shouldNotContain` "ghosttext"
 
+    it "renders the dim thinking block while a run is active" $ do
+      st0 <- mkState []
+      let st  = st0 { asRunState = RunningLLM, asPartialReasoning = "pondering" }
+          pic = M.renderWidget Nothing (drawUI st) (80, 24)
+      show pic `shouldContain` "pondering"
+
+    it "hides the thinking block when Idle" $ do
+      st0 <- mkState []
+      let st  = st0 { asRunState = Idle, asPartialReasoning = "ghostthought" }
+          pic = M.renderWidget Nothing (drawUI st) (80, 24)
+      show pic `shouldNotContain` "ghostthought"
+
 -- ---------------------------------------------------------------------------
 -- Helpers
 -- ---------------------------------------------------------------------------
@@ -118,13 +130,14 @@ mkState :: [Message] -> IO AppState
 mkState msgs = do
   env <- newDummyEnv
   pure AppState
-    { asMessages    = Seq.fromList msgs
-    , asInput       = E.editorText InputEditor (Just 1) ""
-    , asRunState    = Idle
-    , asStatusLine  = "openai:gpt-4o"
-    , asPartialText = ""
-    , asEnv         = env
-    , asSessionId   = sessionId sampleRenderSession
+    { asMessages         = Seq.fromList msgs
+    , asInput            = E.editorText InputEditor (Just 1) ""
+    , asRunState         = Idle
+    , asStatusLine       = "openai:gpt-4o"
+    , asPartialText      = ""
+    , asPartialReasoning = ""
+    , asEnv              = env
+    , asSessionId        = sessionId sampleRenderSession
     }
 
 sampleRenderSession :: Session

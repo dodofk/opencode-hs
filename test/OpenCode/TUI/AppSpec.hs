@@ -156,6 +156,16 @@ spec = do
         Just m  -> NE.toList (msgParts m) `shouldBe` [ErrorPart "boom"]
         Nothing -> expectationFailure "expected one message"
 
+    it "PartialReasoning accumulates into asPartialReasoning" $ do
+      st <- stateWithInput ""
+      let st' = applyEvent (PartialReasoning "cd") (applyEvent (PartialReasoning "ab") st)
+      asPartialReasoning st' `shouldBe` "abcd"
+
+    it "RunStateChanged Idle clears the reasoning buffer" $ do
+      st0 <- stateWithInput ""
+      let st2 = applyEvent (RunStateChanged Idle) (applyEvent (PartialReasoning "x") st0)
+      asPartialReasoning st2 `shouldBe` ""
+
   describe "startRun (forked agentic run)" $ do
 
     it "resets the abort flag synchronously before forking" $ do
@@ -186,13 +196,14 @@ stateWithInput :: Text -> IO AppState
 stateWithInput t = do
   env <- newDummyEnv
   pure AppState
-    { asMessages    = Seq.empty
-    , asInput       = E.editorText InputEditor (Just 1) t
-    , asRunState    = Idle
-    , asStatusLine  = "openai:gpt-4o"
-    , asPartialText = ""
-    , asEnv         = env
-    , asSessionId   = sessionId sampleSession
+    { asMessages         = Seq.empty
+    , asInput            = E.editorText InputEditor (Just 1) t
+    , asRunState         = Idle
+    , asStatusLine       = "openai:gpt-4o"
+    , asPartialText      = ""
+    , asPartialReasoning = ""
+    , asEnv              = env
+    , asSessionId        = sessionId sampleSession
     }
 
 stateWithInput' :: String -> IO AppState

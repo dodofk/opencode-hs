@@ -37,11 +37,12 @@ data ResourceName
 -- the session loop and flip the abort flag. The event channel is reached via
 -- @envEventChan asEnv@.
 data AppState = AppState
-  { asMessages    :: Seq Message
-  , asInput       :: Editor Text ResourceName
-  , asRunState    :: RunState
-  , asStatusLine  :: Text
-  , asPartialText :: Text
-  , asEnv         :: AppEnv
-  , asSessionId   :: SessionId
+  { asMessages         :: Seq Message
+  , asInput            :: Editor Text ResourceName
+  , asRunState         :: RunState
+  , asStatusLine       :: Text
+  , asPartialText      :: Text
+  , asPartialReasoning :: Text
+  , asEnv              :: AppEnv
+  , asSessionId        :: SessionId
   }
