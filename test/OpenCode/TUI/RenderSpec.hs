@@ -179,6 +179,7 @@ mkState msgs = do
     , asSessionId        = sessionId sampleRenderSession
     , asMode             = ModeNormal
     , asNotice           = Nothing
+    , asSuggestSel       = 0
     }
 
 sampleRenderSession :: Session

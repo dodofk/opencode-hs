@@ -116,6 +116,7 @@ spec = do
       asTitle st `shouldBe` "untitled"
       asMode st `shouldBe` ModeNormal
       asNotice st `shouldBe` Nothing
+      asSuggestSel st `shouldBe` 0
 
   describe "applyEvent (session-event reducer)" $ do
 
@@ -248,6 +249,7 @@ stateWithInput t = do
     , asSessionId        = sessionId sampleSession
     , asMode             = ModeNormal
     , asNotice           = Nothing
+    , asSuggestSel       = 0
     }
 
 stateWithInput' :: String -> IO AppState

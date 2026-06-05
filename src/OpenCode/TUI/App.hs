@@ -355,6 +355,7 @@ initialState env session msgs = AppState
   , asSessionId        = sessionId session
   , asMode             = ModeNormal
   , asNotice           = Nothing
+  , asSuggestSel       = 0
   }
 
 emptyEditor :: E.Editor Text ResourceName

@@ -60,7 +60,10 @@ data OverlayKind
 
 -- | The full UI state. 'asMode' drives the modal overlay; 'asNotice' is a
 -- transient one-line status-bar message (block hint, model-set confirmation,
--- unknown-command). The event channel is reached via @envEventChan asEnv@.
+-- unknown-command); 'asSuggestSel' is the highlighted row of the non-modal
+-- slash-command autocomplete panel (visibility is derived from the input text,
+-- so only the index is stored). The event channel is reached via
+-- @envEventChan asEnv@.
 data AppState = AppState
   { asMessages         :: Seq Message
   , asInput            :: Editor Text ResourceName
@@ -74,4 +77,5 @@ data AppState = AppState
   , asSessionId        :: SessionId
   , asMode             :: UIMode
   , asNotice           :: Maybe Text
+  , asSuggestSel       :: Int
   }
