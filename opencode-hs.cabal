@@ -27,6 +27,7 @@ library
       OpenCode.App.Error
       OpenCode.App.Types
       OpenCode.Config
+      OpenCode.Model.Catalog
       OpenCode.Types
       OpenCode.DB
       OpenCode.Session
@@ -49,8 +50,10 @@ library
       OpenCode.Tool.Glob
       OpenCode.Tool.Grep
       OpenCode.TUI.Types
+      OpenCode.TUI.Overlay
       OpenCode.TUI.Render
       OpenCode.TUI.App
+      OpenCode.TUI.Command
   other-modules:
       Paths_opencode_hs
   hs-source-dirs:
@@ -178,7 +181,10 @@ test-suite opencode-hs-test
       OpenCode.Tool.RegistrySpec
       OpenCode.Tool.TypesSpec
       OpenCode.Tool.WriteFileSpec
+      OpenCode.Model.CatalogSpec
       OpenCode.TUI.AppSpec
+      OpenCode.TUI.CommandSpec
+      OpenCode.TUI.OverlaySpec
       OpenCode.TUI.RenderSpec
       OpenCode.TypesSpec
   hs-source-dirs:
