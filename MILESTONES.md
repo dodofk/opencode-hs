@@ -4,7 +4,11 @@ Each milestone is self-contained, testable, and merges as a single PR.
 Milestones are sequenced; no parallelism is assumed for solo development.
 Acceptance for each is one or more concrete shell commands plus expected outcome — not narrative.
 
-## Status snapshot (as of 2026-06-04)
+## Status snapshot (as of 2026-06-05)
+
+v1 (M0–M12) is complete. M13–M15 are the post-v1 roadmap, brainstormed as
+sub-projects A/B/C and sequenced A → B → C (each builds substrate the next
+reuses). Each gets its own spec → plan → implementation cycle.
 
 | #   | Title                                  | Status    | Commit / PR        |
 | --- | -------------------------------------- | --------- | ------------------ |
@@ -21,8 +25,12 @@ Acceptance for each is one or more concrete shell commands plus expected outcome
 | M10 | CLI commands                           | done      | `51f9e0a..`        |
 | M11 | Anthropic provider                     | done      | `3576aa3..`        |
 | M12 | Hardening                              | done      | `3322a4e..`        |
+| M13 | TUI interaction layer (slash + sessions + model) | planned | —          |
+| M14 | MCP client (dynamic external tools)    | planned   | —                  |
+| M15 | Skill system (named instruction bundles) | planned | —                  |
 
-MCP support is **dropped from v1** and will be revisited post-v1. The original M3 was split: OpenAI ships first as M4, Anthropic deferred to M11. The original M4 (tools) and M7 (TUI) were each split into two milestones. Context-window summarization, auto-title, SIGINT handling, `--version`, and README polish were deferred from earlier milestones into M12.
+MCP support was **dropped from v1** and is now scheduled post-v1 as **M14**; a
+**skill system** lands as **M15**. The original M3 was split: OpenAI ships first as M4, Anthropic deferred to M11. The original M4 (tools) and M7 (TUI) were each split into two milestones. Context-window summarization, auto-title, SIGINT handling, `--version`, and README polish were deferred from earlier milestones into M12.
 
 **MiniMax** was added during M9 (`6312b63`) as a third provider served over the OpenAI-compatible endpoint — it reuses the M4 streaming layer and is configured from `MINIMAX_API_KEY`, so it gets no separate milestone number. Anthropic remains planned for M11 as the natively-supported (non-OpenAI-compatible) provider.
 
@@ -497,12 +505,91 @@ run --model anthropic:claude-opus-4-5 --no-tui --prompt …`).
 
 ---
 
+# Post-v1 roadmap (M13–M15)
+
+Three sub-projects (A/B/C), sequenced A → B → C. Each is brainstormed and
+specced independently before implementation; the bullets below are the agreed
+scope, not the final spec.
+
+## M13 — TUI interaction layer (sub-project A) — PLANNED
+
+**Goal**: Make the TUI usable for real multi-session work without restarting —
+a slash-command dispatcher, a session switcher overlay, and in-session model
+switching.
+
+### Scope (to be refined in brainstorming)
+
+- **Slash-command dispatcher**: `/`-prefixed input is intercepted before being
+  sent to the LLM and routed to a command handler (`/new`, `/sessions`,
+  `/model`, `/help`, …). Non-slash input behaves exactly as today.
+- **Session switcher**: a modal overlay listing stored sessions; selecting one
+  swaps the active session at runtime (reload messages, reset partials / title /
+  status / round). No process restart.
+- **Model switching**: change the active model mid-session (`/model`), updating
+  the status bar and the model used for subsequent rounds.
+- Brick has no modal/overlay primitive yet, so a small overlay mechanism is
+  introduced here and reused by M15.
+
+### Acceptance (to be finalized in spec)
+
+- Typing `/help` shows available commands without contacting the LLM.
+- `/sessions` opens an overlay; selecting a different session loads its history.
+- `/model <provider:model>` changes the status-bar model and the next round uses it.
+
+## M14 — MCP client (sub-project B) — PLANNED
+
+**Goal**: Connect to external MCP (Model Context Protocol) servers over stdio
+and merge their advertised tools into the registry, so the agent can call tools
+it doesn't ship with.
+
+### Scope (to be refined in brainstorming)
+
+- **Dynamic-tool path**: extend the tool layer so tools discovered at runtime
+  (no compile-time GADT tag) can be registered — e.g. a `Value -> AppM Value`
+  executor with a server-supplied JSON schema.
+- **Config**: an `mcpServers` section (command, args, env) in `config.yaml`.
+- **stdio JSON-RPC**: spawn each configured server, perform the MCP handshake,
+  `tools/list`, and register each discovered tool; `tools/call` on invocation.
+- **Lifecycle / errors**: a server that fails to start or crashes degrades
+  gracefully (its tools are absent), it does not take down the session.
+
+### Acceptance (to be finalized in spec)
+
+- With a configured MCP server, its tools appear in the system prompt and are callable.
+- A round that calls an MCP tool returns the server's result as a `ToolResultPart`.
+- A misconfigured/missing server logs a clear error and the rest of the app runs.
+
+## M15 — Skill system (sub-project C) — PLANNED
+
+**Goal**: Named, described instruction bundles ("skills") discovered from a
+directory, invocable by the user (via M13's slash commands) and/or surfaced to
+the LLM, so domain workflows can be packaged and reused.
+
+### Scope (to be refined in brainstorming)
+
+- **Discovery**: load skills from a configured directory; each skill has a name,
+  a description, and a body of instructions.
+- **Invocation**: user-invoked via `/skill-name` (M13 dispatcher) and/or
+  LLM-invoked via the M14 dynamic-tool path; injects the skill body into context.
+- **Config**: a skill-directory setting.
+
+### Acceptance (to be finalized in spec)
+
+- A skill file placed in the configured directory is discoverable.
+- Invoking the skill injects its instructions into the conversation.
+
+---
+
 ## Dependency notes
 
 - Stack resolver: `lts-22.39` (GHC 9.6.6).
 - Key version pins: `brick >= 2.3`, `http-conduit >= 2.3.8`, `sqlite-simple >= 0.4.18`, `aeson >= 2.2`, `conduit >= 1.3.5`.
 
-## Out of scope for v1
+## Out of scope for v1 (now scheduled post-v1)
 
-- **MCP client** — postponed; the 6 built-in tools cover v1.
-- **LSP integration**, **GitHub / web search tools**, **multi-tenant remote sessions**, **plugin / skill system** — per SPEC §1.
+- **MCP client** — was postponed from v1 (the 6 built-in tools cover v1); now scheduled as **M14**.
+- **Skill system** — was deferred per SPEC §1; now scheduled as **M15**.
+
+## Still out of scope
+
+- **LSP integration**, **GitHub / web search tools**, **multi-tenant remote sessions** — per SPEC §1.
