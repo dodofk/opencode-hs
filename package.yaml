@@ -113,6 +113,7 @@ library:
     - OpenCode.TUI.Types
     - OpenCode.TUI.Render
     - OpenCode.TUI.App
+    - OpenCode.TUI.Command
 
 executables:
   opencode-hs:
@@ -168,5 +169,6 @@ tests:
       - OpenCode.Tool.WriteFileSpec
       - OpenCode.Model.CatalogSpec
       - OpenCode.TUI.AppSpec
+      - OpenCode.TUI.CommandSpec
       - OpenCode.TUI.RenderSpec
       - OpenCode.TypesSpec
