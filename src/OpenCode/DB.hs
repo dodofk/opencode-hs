@@ -12,6 +12,7 @@ module OpenCode.DB
   , getSession
   , listSessions
   , updateSessionTitle
+  , updateSessionModel
   , newSessionId
     -- * Messages
   , insertMessage
@@ -49,6 +50,7 @@ import OpenCode.Types
   ( Message (..)
   , MessageId (..)
   , MessagePart
+  , ModelId
   , Role (..)
   , Session (..)
   , SessionId (..)
@@ -145,6 +147,12 @@ updateSessionTitle :: Connection -> SessionId -> Text -> IO ()
 updateSessionTitle conn (SessionId sid) title = execute conn
   "UPDATE sessions SET title = ? WHERE id = ?"
   (title, sid)
+
+-- | Overwrite a session's model.
+updateSessionModel :: Connection -> SessionId -> ModelId -> IO ()
+updateSessionModel conn (SessionId sid) m = execute conn
+  "UPDATE sessions SET model_id = ? WHERE id = ?"
+  (encodeJsonText m, sid)
 
 -- | Look up a session by id. Returns Nothing if no row matches.
 getSession :: Connection -> SessionId -> IO (Maybe Session)

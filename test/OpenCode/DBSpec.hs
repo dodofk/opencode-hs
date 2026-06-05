@@ -135,6 +135,17 @@ spec = do
         xs <- listSessions conn
         map sessionId xs `shouldBe` [SessionId "new", SessionId "old"]
 
+  describe "updateSessionModel" $
+    it "overwrites a session's stored model" $
+      withInMemoryDb $ \conn -> do
+        now <- getCurrentTime
+        let s = Session (SessionId "s-model") "t" (ModelId OpenAI "gpt-4o") now
+        insertSession conn s
+        updateSessionModel conn (SessionId "s-model")
+          (ModelId Anthropic "claude-opus-4-5")
+        loaded <- getSession conn (SessionId "s-model")
+        fmap sessionModel loaded `shouldBe` Just (ModelId Anthropic "claude-opus-4-5")
+
   describe "updateSessionTitle" $
     it "overwrites the stored title" $ do
       conn <- openDb ":memory:"
