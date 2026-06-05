@@ -159,6 +159,31 @@ spec = do
           pic = M.renderWidget Nothing (drawUI st) (80, 24)
       show pic `shouldContain` "model set to"
 
+  describe "command autocomplete panel" $ do
+
+    it "hides the panel for non-command input" $ do
+      st0 <- mkState []
+      let st  = st0 { asInput = E.editorText InputEditor (Just 1) "hello" }
+          pic = M.renderWidget Nothing (drawUI st) (80, 24)
+      show pic `shouldNotContain` "switch session"
+
+    it "shows matching commands when the line starts with '/'" $ do
+      st0 <- mkState []
+      let st  = st0 { asInput = E.editorText InputEditor (Just 1) "/se" }
+          pic = M.renderWidget Nothing (drawUI st) (80, 24)
+      show pic `shouldContain` "switch session"
+
+    it "narrows the panel as more is typed" $ do
+      st0 <- mkState []
+      let st  = st0 { asInput = E.editorText InputEditor (Just 1) "/se" }
+          pic = M.renderWidget Nothing (drawUI st) (80, 24)
+      show pic `shouldNotContain` "start a new session"
+
+    it "keeps a single layer in normal mode even when the panel shows" $ do
+      st0 <- mkState []
+      let st = st0 { asInput = E.editorText InputEditor (Just 1) "/" }
+      length (drawUI st) `shouldBe` 1
+
 -- ---------------------------------------------------------------------------
 -- Helpers
 -- ---------------------------------------------------------------------------
