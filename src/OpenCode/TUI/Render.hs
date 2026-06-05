@@ -26,8 +26,10 @@ import Brick
   )
 import Brick.AttrMap (AttrName, attrName)
 import qualified Brick.Widgets.Border as B
+import Brick.Widgets.Center (centerLayer)
 import Brick.Widgets.Core
-  ( padLeft
+  ( hLimit
+  , padLeft
   , padRight
   , str
   , txt
@@ -45,7 +47,8 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import OpenCode.Session.Events (RunState (..))
-import OpenCode.TUI.Types (AppState (..), ResourceName (..))
+import OpenCode.TUI.Overlay (overlayLabels)
+import OpenCode.TUI.Types (AppState (..), Overlay (..), ResourceName (..), UIMode (..))
 import OpenCode.Types
   ( Message (..)
   , MessagePart (..)
@@ -73,10 +76,13 @@ streamingAttr = attrName "streaming"
 -- Top-level layout
 -- ---------------------------------------------------------------------------
 
--- | Top-level draw function passed to 'Brick.Main.App'.
+-- | Top-level draw function passed to 'Brick.Main.App'. When an overlay is
+-- open it is drawn as the first (top) layer over the chat.
 drawUI :: AppState -> [Widget ResourceName]
-drawUI st = [chat <=> statusBar st <=> inputBox st]
+drawUI st = overlayLayer (asMode st) <> [chat <=> statusBar st <=> inputBox st]
   where
+    overlayLayer ModeNormal       = []
+    overlayLayer (ModeOverlay ov) = [renderOverlay ov]
     chat =
       viewport ChatViewport Vertical $
         vBox (map renderMessage (toList (asMessages st)) <> reasoningBlock <> partialBlock)
@@ -94,6 +100,24 @@ drawUI st = [chat <=> statusBar st <=> inputBox st]
       | otherwise = []
 
 -- ---------------------------------------------------------------------------
+-- Overlay (modal picker)
+-- ---------------------------------------------------------------------------
+
+-- | Draw a centered, bordered picker. The selected row is shown with the
+-- 'statusAttr' highlight bar. Pure data comes from 'OpenCode.TUI.Overlay'.
+renderOverlay :: Overlay -> Widget ResourceName
+renderOverlay ov =
+  centerLayer $
+    B.borderWithLabel (txt (" " <> ovTitle ov <> " ")) $
+      hLimit 60 $
+        vBox (zipWith renderRow [0 ..] (overlayLabels (ovKind ov)))
+  where
+    renderRow :: Int -> Text -> Widget ResourceName
+    renderRow i label
+      | i == ovSel ov = withAttr statusAttr (padRight Max (txt (" " <> label)))
+      | otherwise     = padRight Max (txt (" " <> label))
+
+-- ---------------------------------------------------------------------------
 -- Status bar
 -- ---------------------------------------------------------------------------
 
@@ -101,8 +125,14 @@ statusBar :: AppState -> Widget ResourceName
 statusBar st =
   withAttr statusAttr $
     vLimit 1 $
-      padRight Max (txt (leftLabel st))
-        <+> txt (runStateLabel (asRunState st) <> roundSuffix (asRound st))
+      padRight Max (txt (leftLabel st)) <+> txt (rightText st)
+
+-- | Right-hand status segment: a transient notice when present, else the
+-- run-state and round indicator.
+rightText :: AppState -> Text
+rightText st = case asNotice st of
+  Just n  -> n
+  Nothing -> runStateLabel (asRunState st) <> roundSuffix (asRound st)
 
 leftLabel :: AppState -> Text
 leftLabel st

@@ -27,6 +27,7 @@ import Test.QuickCheck
 
 import OpenCode.Session.Events (RunState (..))
 import OpenCode.TestEnv (newDummyEnv)
+import OpenCode.TUI.Overlay (helpOverlay, modelsOverlay)
 import OpenCode.TUI.Render (drawUI, safeWrap)
 import OpenCode.TUI.Types (AppState (..), ResourceName (InputEditor), UIMode (..))
 import OpenCode.Types
@@ -129,6 +130,29 @@ spec = do
       let st  = st0 { asRound = Just (2, 10) }
           pic = M.renderWidget Nothing (drawUI st) (80, 24)
       show pic `shouldContain` "round 2/10"
+
+  describe "overlay layer" $ do
+
+    it "renders the model overlay's rows over the chat" $ do
+      st0 <- mkState []
+      let ov  = modelsOverlay (ModelId OpenAI "gpt-4o")
+                  [ModelId OpenAI "gpt-4o", ModelId Anthropic "claude-opus-4-5"]
+          st  = st0 { asMode = ModeOverlay ov }
+          pic = M.renderWidget Nothing (drawUI st) (80, 24)
+      show pic `shouldContain` "claude-opus-4-5"
+
+    it "renders the help overlay" $ do
+      st0 <- mkState []
+      let st  = st0 { asMode = ModeOverlay helpOverlay }
+          pic = M.renderWidget Nothing (drawUI st) (80, 24)
+      show pic `shouldContain` "commands:"
+
+  describe "status-bar notice" $
+    it "renders a transient notice" $ do
+      st0 <- mkState []
+      let st  = st0 { asNotice = Just "model set to anthropic:claude-opus-4-5" }
+          pic = M.renderWidget Nothing (drawUI st) (80, 24)
+      show pic `shouldContain` "model set to"
 
 -- ---------------------------------------------------------------------------
 -- Helpers
