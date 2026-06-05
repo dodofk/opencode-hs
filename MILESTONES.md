@@ -20,7 +20,7 @@ Acceptance for each is one or more concrete shell commands plus expected outcome
 | M9  | TUI: streaming + tool inline + abort   | done      | `100700b..`        |
 | M10 | CLI commands                           | done      | `51f9e0a..`        |
 | M11 | Anthropic provider                     | done      | `3576aa3..`        |
-| M12 | Hardening                              | pending   | —                  |
+| M12 | Hardening                              | done      | `3322a4e..`        |
 
 MCP support is **dropped from v1** and will be revisited post-v1. The original M3 was split: OpenAI ships first as M4, Anthropic deferred to M11. The original M4 (tools) and M7 (TUI) were each split into two milestones. Context-window summarization, auto-title, SIGINT handling, `--version`, and README polish were deferred from earlier milestones into M12.
 
@@ -461,7 +461,7 @@ run --model anthropic:claude-opus-4-5 --no-tui --prompt …`).
 
 ---
 
-## M12 — Hardening
+## M12 — Hardening — DONE
 
 **Goal**: Project-wide polish plus the items deliberately deferred from earlier milestones.
 
