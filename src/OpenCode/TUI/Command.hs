@@ -2,6 +2,9 @@
 module OpenCode.TUI.Command
   ( Command (..)
   , parseCommand
+  , commandCatalog
+  , commandSuggestions
+  , clampSel
   ) where
 
 import Data.Text (Text)
@@ -40,3 +43,45 @@ parseCommand raw =
       "/help"     -> CmdHelp
       "/quit"     -> CmdQuit
       other       -> CmdUnknown other
+
+-- | Every slash command with its @\/name@ and a one-line description, in the
+-- order they appear in the autocomplete panel and the help overlay. This is the
+-- single source of truth for command names + descriptions.
+commandCatalog :: [(Command, Text, Text)]
+commandCatalog =
+  [ (CmdNew,      "/new",      "start a new session")
+  , (CmdSessions, "/sessions", "switch session")
+  , (CmdModel,    "/model",    "change model (this session)")
+  , (CmdHelp,     "/help",     "show help")
+  , (CmdQuit,     "/quit",     "exit")
+  ]
+
+-- | Autocomplete matches for the current input line. Empty unless the trimmed
+-- input begins with @\/@; otherwise the catalog rows whose @\/name@ has the typed
+-- first token as a case-insensitive prefix.
+--
+-- @\/@ alone matches every command; @\/se@ matches @\/sessions@; @\/foo@ matches
+-- nothing. Returns @(name, description)@ pairs in catalog order.
+commandSuggestions :: Text -> [(Text, Text)]
+commandSuggestions raw =
+  case T.uncons trimmed of
+    Just ('/', _) ->
+      [ (name, desc)
+      | (_, name, desc) <- commandCatalog
+      , token `T.isPrefixOf` T.toLower name
+      ]
+    _ -> []
+  where
+    trimmed = T.strip raw
+    token   = T.toLower firstWord
+    firstWord = case T.words trimmed of
+      (w:_) -> w
+      []    -> ""
+
+-- | Clamp a selection index into @[0, n-1]@ (0 when the list is empty).
+clampSel :: Int -> Int -> Int
+clampSel n i
+  | n <= 0    = 0
+  | i < 0     = 0
+  | i >= n    = n - 1
+  | otherwise = i
