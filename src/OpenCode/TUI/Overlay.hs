@@ -17,6 +17,7 @@ import Data.List (elemIndex)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Time.Format (defaultTimeLocale, formatTime)
 
 import OpenCode.Model.Catalog (modelLabel)
 import OpenCode.TUI.Types (Overlay (..), OverlayKind (..))
@@ -54,7 +55,8 @@ overlayLabels = \case
   OverlayModels   cur ms -> map (modelRow cur) ms
   OverlayHelp     ls     -> ls
   where
-    sessionRow cur s = marker (sessionId s == cur) <> titleOf s
+    sessionRow cur s = marker (sessionId s == cur) <> titleOf s <> "  " <> createdLabel s
+    createdLabel s   = T.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M" (sessionCreated s))
     titleOf s
       | T.null (sessionTitle s) = "(untitled)"
       | otherwise               = sessionTitle s

@@ -40,7 +40,8 @@ spec = do
     it "marks the current session and counts rows" $ do
       let ov = sessionsOverlay (sessionId s2) [s1, s2]
       overlayCount (ovKind ov) `shouldBe` 2
-      overlayLabels (ovKind ov) `shouldBe` ["  one", "* two"]
+      overlayLabels (ovKind ov) `shouldBe`
+        ["  one  2026-06-01 00:00", "* two  2026-06-01 00:00"]
   where
     m1 = ModelId OpenAI "gpt-4o"
     m2 = ModelId Anthropic "claude-opus-4-5"

@@ -206,7 +206,7 @@ helpOverlay     :: Overlay                            -- title "help"; static li
 that module's attrs); it consumes `overlayLabels` and `ovSel` to draw the rows.
 
 Label formats (via `overlayLabels`):
-- sessions: `"<title>   <relative-time>"`, with the current session marked (`*`).
+- sessions: `"<title>   <creation time>"`, with the current session marked (`*`).
 - models: `modelLabel m` (i.e. `provider:model`), current model marked (`*`).
 - help: fixed lines listing the key bindings and the command set.
 
