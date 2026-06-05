@@ -49,9 +49,14 @@ spec = do
 
   describe "drawUI" $ do
 
-    it "produces a single top-level widget" $ do
+    it "produces one layer in ModeNormal (no overlay)" $ do
       st <- mkState []
       length (drawUI st) `shouldBe` 1
+
+    it "produces two layers when an overlay is open" $ do
+      st0 <- mkState []
+      let st = st0 { asMode = ModeOverlay helpOverlay }
+      length (drawUI st) `shouldBe` 2
 
     prop "renders an arbitrary short history without throwing" $
       forAll (resize 8 (listOf genMessage)) $ \msgs -> ioProperty $ do
