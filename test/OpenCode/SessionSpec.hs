@@ -19,8 +19,8 @@ import OpenCode.Config (Config (..), ProviderConfig (..))
 import qualified OpenCode.DB as DB
 import OpenCode.DB (openDb)
 import OpenCode.LLM.Mock (staticStreamer, newScriptedStreamer)
-import OpenCode.LLM.Types (Streamer)
-import OpenCode.Session (agentic, createSession, loadSession, abortSession, processUserMessageWith, streamerForProvider)
+import OpenCode.LLM.Types (LLMRequest (..), Streamer)
+import OpenCode.Session (agentic, buildRequest, createSession, loadSession, abortSession, processUserMessageWith, streamerForProvider)
 import OpenCode.Session.Events (RunState (..), SessionEvent (..))
 import OpenCode.TestEnv (withTestEnv, drainBChan)
 import OpenCode.Tool.Registry (defaultBuiltinRegistry)
@@ -84,7 +84,7 @@ spec = do
               , StreamDone (Usage 5 2 Nothing Nothing)
               ]
         result <- runExceptT $ runReaderT
-          (agentic streamer (sessionId session) []) env
+          (agentic streamer (sessionModel session) (sessionId session) []) env
         case result of
           Right msgs -> do
             length msgs `shouldBe` 1
@@ -97,7 +97,7 @@ spec = do
       withTestEnv $ \env session -> do
         let streamer = staticStreamer [TextDelta "hi", StreamDone (Usage 1 1 Nothing Nothing)]
         _ <- runExceptT $ runReaderT
-          (agentic streamer (sessionId session) []) env
+          (agentic streamer (sessionModel session) (sessionId session) []) env
         stored <- DB.getMessages (envDb env) (sessionId session)
         length stored `shouldBe` 1
         msgRole (head stored) `shouldBe` RoleAssistant
@@ -110,7 +110,7 @@ spec = do
               [ TextDelta "Hel", TextDelta "lo"
               , StreamDone (Usage 1 1 Nothing Nothing)
               ]
-        _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        _    <- runExceptT $ runReaderT (agentic streamer (sessionModel session) (sessionId session) []) env
         evts <- drainBChan (envEventChan env)
         [t | PartialText t <- evts] `shouldBe` ["Hel", "lo"]
 
@@ -119,7 +119,7 @@ spec = do
         let streamer = staticStreamer
               [ ReasoningDelta "thinking", TextDelta "hi"
               , StreamDone (Usage 1 1 Nothing Nothing) ]
-        _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        _    <- runExceptT $ runReaderT (agentic streamer (sessionModel session) (sessionId session) []) env
         evts <- drainBChan (envEventChan env)
         [t | PartialReasoning t <- evts] `shouldBe` ["thinking"]
 
@@ -127,7 +127,7 @@ spec = do
       withTestEnv $ \env session -> do
         let streamer = staticStreamer
               [ ReasoningDelta "just thinking", StreamDone (Usage 0 0 Nothing Nothing) ]
-        _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        _    <- runExceptT $ runReaderT (agentic streamer (sessionModel session) (sessionId session) []) env
         evts <- drainBChan (envEventChan env)
         [() | ErrorOccurred _ <- evts] `shouldBe` []
 
@@ -136,7 +136,7 @@ spec = do
     it "persists a provider StreamError as an ErrorPart, no transient ErrorOccurred" $
       withTestEnv $ \env session -> do
         let streamer = staticStreamer [StreamError "minimax: 429: rate limited"]
-        _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        _    <- runExceptT $ runReaderT (agentic streamer (sessionModel session) (sessionId session) []) env
         evts <- drainBChan (envEventChan env)
         [m | ErrorOccurred m <- evts] `shouldBe` []
         stored <- DB.getMessages (envDb env) (sessionId session)
@@ -148,7 +148,7 @@ spec = do
       withTestEnv $ \env session -> do
         let streamer = staticStreamer
               [ TextDelta "partial answer", StreamError "connection reset by peer" ]
-        _ <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        _ <- runExceptT $ runReaderT (agentic streamer (sessionModel session) (sessionId session) []) env
         stored <- DB.getMessages (envDb env) (sessionId session)
         let parts = concatMap (NE.toList . msgParts) stored
         [t | TextPart t  <- parts] `shouldBe` ["partial answer"]
@@ -159,7 +159,7 @@ spec = do
         -- 200 OK but no text and no tool call (e.g. a reasoning model that
         -- streamed only thinking) must not look like a frozen no-response.
         let streamer = staticStreamer [StreamDone (Usage 0 0 Nothing Nothing)]
-        _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        _    <- runExceptT $ runReaderT (agentic streamer (sessionModel session) (sessionId session) []) env
         evts <- drainBChan (envEventChan env)
         length [() | ErrorOccurred _ <- evts] `shouldBe` 1
         [s | RunStateChanged s <- evts] `shouldSatisfy` endsWith Idle
@@ -176,7 +176,7 @@ spec = do
               , StreamDone (Usage 1 1 Nothing Nothing) ]
             round2 = [ TextDelta "done", StreamDone (Usage 1 1 Nothing Nothing) ]
         streamer <- newScriptedStreamer [round1, round2]
-        _    <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        _    <- runExceptT $ runReaderT (agentic streamer (sessionModel session) (sessionId session) []) env
         evts <- drainBChan (envEventChan env)
         [ (c, t) | RoundStarted c t <- evts ] `shouldBe` [(1, 10), (2, 10)]
 
@@ -195,7 +195,7 @@ spec = do
               ]
         streamer <- newScriptedStreamer [round1, round2]
         result <- runExceptT $ runReaderT
-          (agentic streamer (sessionId session) []) env
+          (agentic streamer (sessionModel session) (sessionId session) []) env
         case result of
           Right msgs -> do
             length msgs `shouldBe` 2   -- assistant msg 1 (tool call + result) + assistant msg 2 (text)
@@ -217,7 +217,7 @@ spec = do
         let path = "/tmp/m9-abort-skip.txt"
         removeIfExists path
         let streamer = abortingAfterToolCall (envAbort env) path
-        result <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        result <- runExceptT $ runReaderT (agentic streamer (sessionModel session) (sessionId session) []) env
         case result of
           Right msgs -> do
             length msgs `shouldBe` 1
@@ -235,7 +235,7 @@ spec = do
         let path = "/tmp/m9-between-rounds.txt"
         removeIfExists path
         let streamer = abortAfterToolRound (envAbort env) path
-        result <- runExceptT $ runReaderT (agentic streamer (sessionId session) []) env
+        result <- runExceptT $ runReaderT (agentic streamer (sessionModel session) (sessionId session) []) env
         case result of
           Right msgs -> length msgs `shouldBe` 1   -- round 1 only; no recursion into round 2
           Left err   -> expectationFailure (show err)
@@ -258,7 +258,7 @@ spec = do
         let scripted = [TextDelta "Hello, you!", StreamDone (Usage 3 4 Nothing Nothing)]
             streamer = staticStreamer scripted
         result <- runExceptT $ runReaderT
-          (processUserMessageWith streamer (sessionId session) "hi there") env
+          (processUserMessageWith streamer (sessionModel session) (sessionId session) "hi there") env
         case result of
           Right () -> pure ()
           Left err -> expectationFailure (show err)
@@ -280,7 +280,7 @@ spec = do
               ]
         streamer <- newScriptedStreamer [round1]
         result <- runExceptT $ runReaderT
-          (agentic streamer (sessionId session) []) env
+          (agentic streamer (sessionModel session) (sessionId session) []) env
         case result of
           Right msgs -> do
             length msgs `shouldBe` 1
@@ -306,6 +306,12 @@ spec = do
       isLeft (streamerForProvider (cfgWith Nothing Nothing) Anthropic) `shouldBe` True
     it "returns a streamer when the Anthropic key is present" $
       isRight (streamerForProvider cfgAnthropic Anthropic) `shouldBe` True
+
+  describe "buildRequest (model threading)" $
+    it "uses the supplied model, not the config default" $
+      withTestEnv $ \env _session ->
+        reqModel (buildRequest env (ModelId Anthropic "claude-opus-4-5") [])
+          `shouldBe` "claude-opus-4-5"
 
   where
     isToolCall (ToolCallPart _)     = True

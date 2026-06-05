@@ -31,7 +31,7 @@ spec = describe "error paths" $ do
       let streamer = staticStreamer
             [ StreamError "openai: 401: invalid api key", StreamDone (Usage 0 0 Nothing Nothing) ]
       result <- runExceptT $ runReaderT
-        (processUserMessageWith streamer (sessionId session) "hello") env
+        (processUserMessageWith streamer (sessionModel session) (sessionId session) "hello") env
       result `shouldBe` Right ()
       stored <- DB.getMessages (envDb env) (sessionId session)
       msgRole (head stored) `shouldBe` RoleUser
@@ -47,7 +47,7 @@ spec = describe "error paths" $ do
           round2 = [ TextDelta "recovered", StreamDone (Usage 1 1 Nothing Nothing) ]
       streamer <- newScriptedStreamer [round1, round2]
       _ <- runExceptT $ runReaderT
-        (processUserMessageWith streamer (sessionId session) "go") env
+        (processUserMessageWith streamer (sessionModel session) (sessionId session) "go") env
       stored <- DB.getMessages (envDb env) (sessionId session)
       let results = [ r | m <- stored, ToolResultPart r <- NE.toList (msgParts m) ]
           texts   = [ t | m <- stored, TextPart t <- NE.toList (msgParts m) ]
@@ -77,7 +77,7 @@ spec = describe "error paths" $ do
       let streamer = staticStreamer
             [ TextDelta "partial answer", StreamError "connection reset by peer" ]
       _ <- runExceptT $ runReaderT
-        (processUserMessageWith streamer (sessionId session) "q") env
+        (processUserMessageWith streamer (sessionModel session) (sessionId session) "q") env
       stored <- DB.getMessages (envDb env) (sessionId session)
       let parts = concatMap (NE.toList . msgParts) stored
       ("partial answer" `elem` [t | TextPart t <- parts]) `shouldBe` True

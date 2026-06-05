@@ -10,6 +10,7 @@ module OpenCode.Session
   , emitEvent
     -- * Loop
   , agentic
+  , buildRequest
   , maxToolRounds
     -- * Abort
   , abortSession
@@ -116,8 +117,8 @@ maxToolRounds = 10
 -- 'maxToolRounds' times when tools are executed.
 --
 -- Returns the assistant messages appended in THIS call (not the prior history).
-agentic :: Streamer -> SessionId -> [Message] -> AppM [Message]
-agentic streamer sid history = go 0 history []
+agentic :: Streamer -> ModelId -> SessionId -> [Message] -> AppM [Message]
+agentic streamer mdl sid history = go 0 history []
   where
     go :: Int -> [Message] -> [Message] -> AppM [Message]
     go roundNum soFar appended
@@ -126,7 +127,7 @@ agentic streamer sid history = go 0 history []
           env <- ask
           emitEvent (RoundStarted (roundNum + 1) maxToolRounds)
           emitEvent (RunStateChanged RunningLLM)
-          let req    = buildRequest env soFar
+          let req    = buildRequest env mdl soFar
               stream = streamer req
           (events, aborted) <- liftIO $ Conduit.runResourceT $ Conduit.runConduit $
             stream .| consumeStream (envEventChan env) (envAbort env)
@@ -169,9 +170,9 @@ agentic streamer sid history = go 0 history []
                         else go (roundNum + 1) nextHistory nextAppended
                     else pure (reverse nextAppended)
 
-buildRequest :: AppEnv -> [Message] -> LLMRequest
-buildRequest env history = LLMRequest
-  { reqModel        = model (Config.defaultModel (envConfig env))
+buildRequest :: AppEnv -> ModelId -> [Message] -> LLMRequest
+buildRequest env mdl history = LLMRequest
+  { reqModel        = model mdl
   , reqMessages     = history
   , reqTools        = map someToolDefinition (Map.elems (unRegistry (envRegistry env)))
   , reqSystemPrompt = systemPrompt (envRegistry env)
@@ -340,23 +341,20 @@ emptyResponseMessage =
 
 -- | Process a user prompt: persist a user 'Message', run one agentic loop,
 -- and return. When @OPENCODE_MOCK=1@ is set, use a delay-paced canned reply
--- for keyless manual testing; otherwise select a streamer for the configured
--- default model's provider (see 'selectStreamer').
+-- for keyless manual testing; otherwise select a streamer for the session's
+-- model's provider.
 processUserMessage :: SessionId -> Text -> AppM ()
 processUserMessage sid prompt = do
+  cfg      <- asks envConfig
+  mSession <- loadSession sid
+  let mdl = maybe (Config.defaultModel cfg) sessionModel mSession
   mock <- liftIO (lookupEnv "OPENCODE_MOCK")
   case mock of
     Just "1" ->
-      processUserMessageWith (Mock.delayedStreamer mockChunkDelayUs mockReply) sid prompt
+      processUserMessageWith (Mock.delayedStreamer mockChunkDelayUs mockReply) mdl sid prompt
     _ -> do
-      cfg      <- asks envConfig
-      streamer <- either throwError pure (selectStreamer cfg)
-      processUserMessageWith streamer sid prompt
-
--- | Pick a streaming provider for the configured default model. Thin wrapper
--- over 'streamerForProvider'.
-selectStreamer :: Config.Config -> Either AppError Streamer
-selectStreamer cfg = streamerForProvider cfg (provider (Config.defaultModel cfg))
+      streamer <- either throwError pure (streamerForProvider cfg (provider mdl))
+      processUserMessageWith streamer mdl sid prompt
 
 -- | Pick a streamer for a specific provider id, given the configured keys.
 -- MiniMax and OpenAI share the OpenAI-compatible wire format and differ only in
@@ -396,8 +394,8 @@ mockReply =
 -- | Streamer-parameterized variant of 'processUserMessage'. Exposed for
 -- tests that inject a mock 'Streamer'. Production callers use the
 -- 'processUserMessage' wrapper above.
-processUserMessageWith :: Streamer -> SessionId -> Text -> AppM ()
-processUserMessageWith streamer sid prompt = do
+processUserMessageWith :: Streamer -> ModelId -> SessionId -> Text -> AppM ()
+processUserMessageWith streamer mdl sid prompt = do
   -- 1. Build and persist the user message.
   conn <- asks envDb
   mid  <- liftIO DB.newMessageId
@@ -411,11 +409,10 @@ processUserMessageWith streamer sid prompt = do
   liftIO (DB.insertMessage conn sid userMsg)
   -- 2. Load the full message history (user + any prior turns) and drive the loop.
   history <- liftIO (DB.getMessages conn sid)
-  mdl     <- asks (Config.defaultModel . envConfig)
   let threshold  = (contextLimit mdl * 4) `div` 5
       keepRecent = 6
   history' <- maybeSummarize streamer mdl threshold keepRecent history
-  _        <- agentic streamer sid history'
+  _        <- agentic streamer mdl sid history'
   -- 3. On the first turn (history had only the user message we just inserted),
   --    generate a title and broadcast it. Non-fatal: a failed or empty result
   --    leaves the title untouched.
