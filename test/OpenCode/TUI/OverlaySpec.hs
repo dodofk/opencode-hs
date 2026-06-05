@@ -1,11 +1,13 @@
 module OpenCode.TUI.OverlaySpec (spec) where
 
 import Data.Time (UTCTime (..), fromGregorian)
+import qualified Data.Text as T
 import Test.Hspec
 
 import OpenCode.TUI.Overlay
-  ( modelsOverlay, overlayCount, overlayLabels, overlayMove, overlaySelected
-  , sessionsOverlay )
+  ( helpOverlay, modelsOverlay, overlayCount, overlayLabels, overlayMove
+  , overlaySelected, sessionsOverlay )
+import OpenCode.TUI.Command (commandCatalog)
 import OpenCode.TUI.Types (Overlay (..))
 import OpenCode.Types (ModelId (..), ProviderId (..), Session (..), SessionId (..))
 
@@ -42,6 +44,12 @@ spec = do
       overlayCount (ovKind ov) `shouldBe` 2
       overlayLabels (ovKind ov) `shouldBe`
         ["  one  2026-06-01 00:00", "* two  2026-06-01 00:00"]
+
+  describe "helpOverlay / catalog consistency" $
+    it "lists every catalog command name in the help rows" $ do
+      let rows  = overlayLabels (ovKind helpOverlay)
+          names = [ n | (_, n, _) <- commandCatalog ]
+      all (\n -> any (n `T.isInfixOf`) rows) names `shouldBe` True
   where
     m1 = ModelId OpenAI "gpt-4o"
     m2 = ModelId Anthropic "claude-opus-4-5"

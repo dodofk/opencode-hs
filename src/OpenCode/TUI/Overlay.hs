@@ -20,6 +20,7 @@ import qualified Data.Text as T
 import Data.Time.Format (defaultTimeLocale, formatTime)
 
 import OpenCode.Model.Catalog (modelLabel)
+import OpenCode.TUI.Command (commandCatalog)
 import OpenCode.TUI.Types (Overlay (..), OverlayKind (..))
 import OpenCode.Types (ModelId, Session (..), SessionId)
 
@@ -90,16 +91,14 @@ helpOverlay = Overlay
 
 helpLines :: [Text]
 helpLines =
-  [ "commands:"
-  , "  /new       start a new session"
-  , "  /sessions  switch session"
-  , "  /model     change model (this session)"
-  , "  /help      this help"
-  , "  /quit      exit"
-  , ""
-  , "keys:"
-  , "  Enter      send / confirm"
-  , "  Esc        close overlay / abort run"
-  , "  Up/Down    move selection / scroll"
-  , "  Ctrl-C     quit"
-  ]
+  "commands:" : map commandRow commandCatalog
+    <> [ ""
+       , "keys:"
+       , "  Enter      send / confirm"
+       , "  Esc        close overlay / abort run"
+       , "  Up/Down    move selection / scroll"
+       , "  Tab        complete the highlighted command"
+       , "  Ctrl-C     quit"
+       ]
+  where
+    commandRow (_, name, desc) = "  " <> T.justifyLeft 9 ' ' name <> "  " <> desc
