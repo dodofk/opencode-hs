@@ -111,6 +111,7 @@ library:
     - OpenCode.Tool.Glob
     - OpenCode.Tool.Grep
     - OpenCode.TUI.Types
+    - OpenCode.TUI.Overlay
     - OpenCode.TUI.Render
     - OpenCode.TUI.App
     - OpenCode.TUI.Command
@@ -170,5 +171,6 @@ tests:
       - OpenCode.Model.CatalogSpec
       - OpenCode.TUI.AppSpec
       - OpenCode.TUI.CommandSpec
+      - OpenCode.TUI.OverlaySpec
       - OpenCode.TUI.RenderSpec
       - OpenCode.TypesSpec
