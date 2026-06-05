@@ -30,3 +30,9 @@ spec = describe "parseCommand" $ do
 
   it "reports an unknown slash command (lower-cased first word)" $
     parseCommand "/Foo bar" `shouldBe` Just (CmdUnknown "/foo")
+
+  it "splits the command from tab-separated arguments" $
+    parseCommand "/model\topenai:gpt-4o" `shouldBe` Just CmdModel
+
+  it "treats a bare slash as an unknown command" $
+    parseCommand "/" `shouldBe` Just (CmdUnknown "/")

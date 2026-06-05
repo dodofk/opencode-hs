@@ -30,7 +30,9 @@ parseCommand raw =
     _             -> Nothing
   where
     trimmed   = T.strip raw
-    firstWord = T.toLower (T.takeWhile (/= ' ') trimmed)
+    firstWord = T.toLower (case T.words trimmed of
+                             (w:_) -> w
+                             []    -> "")
     classify w = case w of
       "/new"      -> CmdNew
       "/sessions" -> CmdSessions
