@@ -66,7 +66,7 @@ import OpenCode.TUI.Render
   , toolAttr
   , userAttr
   )
-import OpenCode.TUI.Types (AppState (..), ResourceName (..))
+import OpenCode.TUI.Types (AppState (..), ResourceName (..), UIMode (..))
 import OpenCode.Types
   ( Message (..)
   , MessageId (MessageId)
@@ -194,6 +194,8 @@ initialState env session msgs = AppState
   , asTitle            = sessionTitle session
   , asEnv              = env
   , asSessionId        = sessionId session
+  , asMode             = ModeNormal
+  , asNotice           = Nothing
   }
 
 emptyEditor :: E.Editor Text ResourceName

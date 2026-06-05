@@ -6,6 +6,9 @@
 module OpenCode.TUI.Types
   ( ResourceName (..)
   , AppState (..)
+  , UIMode (..)
+  , Overlay (..)
+  , OverlayKind (..)
   , RunState (..)
   , SessionEvent (..)
   ) where
@@ -16,7 +19,7 @@ import Data.Text (Text)
 
 import OpenCode.App.Types (AppEnv)
 import OpenCode.Session.Events (RunState (..), SessionEvent (..))
-import OpenCode.Types (Message, SessionId)
+import OpenCode.Types (Message, ModelId, Session, SessionId)
 
 -- ---------------------------------------------------------------------------
 -- Resource names (used by brick to identify widgets / viewports)
@@ -29,13 +32,35 @@ data ResourceName
   deriving stock (Show, Eq, Ord)
 
 -- ---------------------------------------------------------------------------
+-- Overlay (modal picker) — pure data; logic in OpenCode.TUI.Overlay,
+-- rendering in OpenCode.TUI.Render.
+-- ---------------------------------------------------------------------------
+
+data UIMode
+  = ModeNormal
+  | ModeOverlay Overlay
+  deriving stock (Show, Eq)
+
+data Overlay = Overlay
+  { ovTitle :: Text
+  , ovSel   :: Int            -- ^ selected row, clamped to [0, count-1]
+  , ovKind  :: OverlayKind
+  }
+  deriving stock (Show, Eq)
+
+data OverlayKind
+  = OverlaySessions SessionId [Session]  -- ^ current id (for the * marker) + rows
+  | OverlayModels   ModelId   [ModelId]  -- ^ current model (* marker + preselect) + rows
+  | OverlayHelp     [Text]               -- ^ non-actionable lines
+  deriving stock (Show, Eq)
+
+-- ---------------------------------------------------------------------------
 -- App state
 -- ---------------------------------------------------------------------------
 
--- | The full UI state. M9 adds 'asPartialText' (the in-flight streaming
--- buffer) and embeds 'asEnv'/'asSessionId' so the Enter/Esc handlers can fork
--- the session loop and flip the abort flag. The event channel is reached via
--- @envEventChan asEnv@.
+-- | The full UI state. 'asMode' drives the modal overlay; 'asNotice' is a
+-- transient one-line status-bar message (block hint, model-set confirmation,
+-- unknown-command). The event channel is reached via @envEventChan asEnv@.
 data AppState = AppState
   { asMessages         :: Seq Message
   , asInput            :: Editor Text ResourceName
@@ -47,4 +72,6 @@ data AppState = AppState
   , asTitle            :: Text
   , asEnv              :: AppEnv
   , asSessionId        :: SessionId
+  , asMode             :: UIMode
+  , asNotice           :: Maybe Text
   }

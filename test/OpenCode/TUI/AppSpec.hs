@@ -26,7 +26,7 @@ import OpenCode.TUI.App
   , shouldSubmit
   , startRun
   )
-import OpenCode.TUI.Types (AppState (..), ResourceName (InputEditor))
+import OpenCode.TUI.Types (AppState (..), ResourceName (InputEditor), UIMode (..))
 import OpenCode.Types
   ( Message (..)
   , MessageId (..)
@@ -112,6 +112,8 @@ spec = do
       asStatusLine st `shouldBe` "openai:gpt-4o"
       asPartialText st `shouldBe` ""
       asTitle st `shouldBe` "untitled"
+      asMode st `shouldBe` ModeNormal
+      asNotice st `shouldBe` Nothing
 
   describe "applyEvent (session-event reducer)" $ do
 
@@ -218,6 +220,8 @@ stateWithInput t = do
     , asTitle            = "untitled"
     , asEnv              = env
     , asSessionId        = sessionId sampleSession
+    , asMode             = ModeNormal
+    , asNotice           = Nothing
     }
 
 stateWithInput' :: String -> IO AppState

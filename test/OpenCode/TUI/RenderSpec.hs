@@ -28,7 +28,7 @@ import Test.QuickCheck
 import OpenCode.Session.Events (RunState (..))
 import OpenCode.TestEnv (newDummyEnv)
 import OpenCode.TUI.Render (drawUI, safeWrap)
-import OpenCode.TUI.Types (AppState (..), ResourceName (InputEditor))
+import OpenCode.TUI.Types (AppState (..), ResourceName (InputEditor), UIMode (..))
 import OpenCode.Types
   ( Message (..)
   , MessageId (..)
@@ -148,6 +148,8 @@ mkState msgs = do
     , asTitle            = "untitled"
     , asEnv              = env
     , asSessionId        = sessionId sampleRenderSession
+    , asMode             = ModeNormal
+    , asNotice           = Nothing
     }
 
 sampleRenderSession :: Session
