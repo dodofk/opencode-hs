@@ -88,6 +88,7 @@ library:
     - OpenCode.App.Error
     - OpenCode.App.Types
     - OpenCode.Config
+    - OpenCode.Model.Catalog
     - OpenCode.Types
     - OpenCode.DB
     - OpenCode.Session
@@ -165,6 +166,7 @@ tests:
       - OpenCode.Tool.RegistrySpec
       - OpenCode.Tool.TypesSpec
       - OpenCode.Tool.WriteFileSpec
+      - OpenCode.Model.CatalogSpec
       - OpenCode.TUI.AppSpec
       - OpenCode.TUI.RenderSpec
       - OpenCode.TypesSpec

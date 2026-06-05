@@ -53,6 +53,7 @@ import Lens.Micro.Mtl (zoom)
 import OpenCode.App (runAppM)
 import OpenCode.App.Error (displayAppError)
 import OpenCode.App.Types (AppEnv (..))
+import OpenCode.Model.Catalog (modelLabel)
 import qualified OpenCode.DB as DB
 import OpenCode.Session (processUserMessage)
 import OpenCode.Session.Events (RunState (..), SessionEvent (..))
@@ -70,8 +71,6 @@ import OpenCode.Types
   ( Message (..)
   , MessageId (MessageId)
   , MessagePart (TextPart, ErrorPart)
-  , ModelId (..)
-  , ProviderId (..)
   , Role (RoleUser, RoleAssistant)
   , Session (..)
   , SessionId
@@ -263,16 +262,6 @@ errorMessage e = Message
   , msgParts   = ErrorPart e :| []
   , msgCreated = UTCTime (fromGregorian 1970 1 1) 0
   }
-
--- | A human-readable @provider:model@ label for the status bar.
-modelLabel :: ModelId -> Text
-modelLabel (ModelId p m) = providerLabel p <> ":" <> m
-
-providerLabel :: ProviderId -> Text
-providerLabel = \case
-  OpenAI    -> "openai"
-  Anthropic -> "anthropic"
-  MiniMax   -> "minimax"
 
 -- ---------------------------------------------------------------------------
 -- Internals
