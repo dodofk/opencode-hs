@@ -125,6 +125,22 @@ The agent can call these tools during a run:
 
 Abort is cooperative: Esc signals the loop to stop between tool rounds. If the process receives SIGINT (Ctrl-C in headless mode), it exits immediately.
 
+## Slash commands
+
+Type these at the input line (Enter to run):
+
+| Command     | Action                                                    |
+|-------------|-----------------------------------------------------------|
+| `/new`      | Start a new session and switch to it                      |
+| `/sessions` | Open a picker to switch to another stored session         |
+| `/model`    | Open a picker to change this session's model (persisted)  |
+| `/help`     | Show keys and commands                                    |
+| `/quit`     | Exit (same as Ctrl-C)                                     |
+
+Pickers are modal: `↑/↓` to move, `Enter` to confirm, `Esc` to cancel.
+Context-changing commands (`/new`, `/sessions`, `/model`) are disabled while a
+run is streaming — press `Esc` to abort first.
+
 ## Troubleshooting
 
 **No API key configured**

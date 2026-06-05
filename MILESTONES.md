@@ -25,7 +25,7 @@ reuses). Each gets its own spec → plan → implementation cycle.
 | M10 | CLI commands                           | done      | `51f9e0a..`        |
 | M11 | Anthropic provider                     | done      | `3576aa3..`        |
 | M12 | Hardening                              | done      | `3322a4e..`        |
-| M13 | TUI interaction layer (slash + sessions + model) | planned | —          |
+| M13 | TUI interaction layer (slash + sessions + model) | done    | `34ac668..bf35957` |
 | M14 | MCP client (dynamic external tools)    | planned   | —                  |
 | M15 | Skill system (named instruction bundles) | planned | —                  |
 
@@ -511,7 +511,7 @@ Three sub-projects (A/B/C), sequenced A → B → C. Each is brainstormed and
 specced independently before implementation; the bullets below are the agreed
 scope, not the final spec.
 
-## M13 — TUI interaction layer (sub-project A) — PLANNED
+## M13 — TUI interaction layer (sub-project A) — DONE
 
 **Goal**: Make the TUI usable for real multi-session work without restarting —
 a slash-command dispatcher, a session switcher overlay, and in-session model

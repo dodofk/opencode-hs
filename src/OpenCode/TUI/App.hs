@@ -237,7 +237,7 @@ commitOverlay ov = do
                                     (\s -> switchTo s st { asNotice = Nothing })
                                     (safeIndex ss i)
       OverlayModels _ ms   -> maybe (put st { asMode = ModeNormal })
-                                    (\m -> setModel m st)
+                                    (`setModel` st)
                                     (safeIndex ms i)
 
 -- | /new: create a session with the config default model and switch to it.
