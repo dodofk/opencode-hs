@@ -17,6 +17,8 @@ module OpenCode.TUI.App
   , appendUserMessage
   , applyEnter
   , applyEvent
+  , applySwitch
+  , applyModelSet
   , currentInput
   , inputContents
   , shouldSubmit
@@ -50,12 +52,12 @@ import Graphics.Vty.CrossPlatform (mkVty)
 import Lens.Micro (Lens')
 import Lens.Micro.Mtl (zoom)
 
-import OpenCode.App (runAppM)
+import OpenCode.App (runAppM, AppError)
 import OpenCode.App.Error (displayAppError)
 import OpenCode.App.Types (AppEnv (..))
-import OpenCode.Model.Catalog (modelLabel)
+import OpenCode.Model.Catalog (availableModels, modelLabel)
 import qualified OpenCode.DB as DB
-import OpenCode.Session (processUserMessage)
+import OpenCode.Session (processUserMessage, createSession)
 import OpenCode.Session.Events (RunState (..), SessionEvent (..))
 import OpenCode.TUI.Render
   ( assistantAttr
@@ -66,11 +68,17 @@ import OpenCode.TUI.Render
   , toolAttr
   , userAttr
   )
-import OpenCode.TUI.Types (AppState (..), ResourceName (..), UIMode (..))
+import OpenCode.Config (Config (..))
+import OpenCode.TUI.Command (Command (..), parseCommand)
+import OpenCode.TUI.Overlay
+  ( helpOverlay, modelsOverlay, sessionsOverlay, overlayMove, overlaySelected )
+import OpenCode.TUI.Types
+  ( AppState (..), ResourceName (..), UIMode (..), Overlay (..), OverlayKind (..) )
 import OpenCode.Types
   ( Message (..)
   , MessageId (MessageId)
   , MessagePart (TextPart, ErrorPart)
+  , ModelId
   , Role (RoleUser, RoleAssistant)
   , Session (..)
   , SessionId
@@ -137,34 +145,185 @@ theMap = attrMap V.defAttr
 -- Event handling
 -- ---------------------------------------------------------------------------
 
+-- | Top-level event router. Ctrl-C always quits. Session events apply in any
+-- mode. Otherwise dispatch on whether a modal overlay is open.
 handleEvent :: BrickEvent ResourceName SessionEvent -> EventM ResourceName AppState ()
 handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) = M.halt
-handleEvent (VtyEvent (V.EvKey V.KEsc [])) = do
-  st <- get
-  liftIO (atomically (writeTVar (envAbort (asEnv st)) True))
-handleEvent (VtyEvent (V.EvKey V.KEnter [])) = do
-  st <- get
-  let body = currentInput st
-  when (asRunState st == Idle && shouldSubmit body) $ do
-    msg <- liftIO (mkUserMessage body)
-    -- Set RunningLLM eagerly so the Idle gate (not just the cleared input)
-    -- blocks a second Enter during the window before the fork's first
-    -- RunStateChanged event arrives; also gives instant status feedback.
-    put ((applyEnter msg st) { asRunState = RunningLLM })
-    liftIO (startRun (asEnv st) (asSessionId st) body)
-    M.vScrollToEnd chatScroll          -- show the just-sent message
-handleEvent (VtyEvent (V.EvKey V.KUp       [])) = M.vScrollBy chatScroll (-lineStep)
-handleEvent (VtyEvent (V.EvKey V.KDown     [])) = M.vScrollBy chatScroll lineStep
-handleEvent (VtyEvent (V.EvKey V.KPageUp   [])) = M.vScrollBy chatScroll (-pageStep)
-handleEvent (VtyEvent (V.EvKey V.KPageDown [])) = M.vScrollBy chatScroll pageStep
-handleEvent (VtyEvent ev) = zoom inputL (E.handleEditorEvent (VtyEvent ev))
 handleEvent (AppEvent ev) = do
   st <- get
   put (applyEvent ev st)
-  -- Follow the newest output as it streams in (token, tool result, or appended
-  -- message). Manual ↑/↓/PgUp/PgDn still work between events and once idle.
   M.vScrollToEnd chatScroll
-handleEvent _ = pure ()
+handleEvent ev = do
+  st <- get
+  case asMode st of
+    ModeOverlay ov -> handleOverlay ov ev
+    ModeNormal     -> handleNormal ev
+
+-- | Normal-mode keys: Esc aborts a run, Enter parses commands or submits a
+-- prompt, arrows/page scroll, everything else feeds the editor.
+handleNormal :: BrickEvent ResourceName SessionEvent -> EventM ResourceName AppState ()
+handleNormal (VtyEvent (V.EvKey V.KEsc [])) = do
+  st <- get
+  liftIO (atomically (writeTVar (envAbort (asEnv st)) True))
+handleNormal (VtyEvent (V.EvKey V.KEnter []))     = onEnter
+handleNormal (VtyEvent (V.EvKey V.KUp       []))  = M.vScrollBy chatScroll (-lineStep)
+handleNormal (VtyEvent (V.EvKey V.KDown     []))  = M.vScrollBy chatScroll lineStep
+handleNormal (VtyEvent (V.EvKey V.KPageUp   []))  = M.vScrollBy chatScroll (-pageStep)
+handleNormal (VtyEvent (V.EvKey V.KPageDown []))  = M.vScrollBy chatScroll pageStep
+handleNormal (VtyEvent ev) = zoom inputL (E.handleEditorEvent (VtyEvent ev))
+handleNormal _ = pure ()
+
+-- | The Enter action in normal mode: a slash command dispatches; anything else
+-- is submitted to the LLM exactly as before.
+onEnter :: EventM ResourceName AppState ()
+onEnter = do
+  st <- get
+  let body = currentInput st
+  case parseCommand body of
+    Nothing ->
+      when (asRunState st == Idle && shouldSubmit body) $ do
+        msg <- liftIO (mkUserMessage body)
+        put ((applyEnter msg st) { asRunState = RunningLLM, asNotice = Nothing })
+        liftIO (startRun (asEnv st) (asSessionId st) body)
+        M.vScrollToEnd chatScroll
+    Just cmd -> do
+      put st { asInput = emptyEditor, asNotice = Nothing }
+      dispatchCommand cmd
+
+-- | Run a slash command. Context-changing commands are blocked while a run is
+-- in flight (with a notice); /help and /quit always work.
+dispatchCommand :: Command -> EventM ResourceName AppState ()
+dispatchCommand cmd = do
+  st <- get
+  case cmd of
+    CmdHelp      -> put st { asMode = ModeOverlay helpOverlay }
+    CmdQuit      -> M.halt
+    CmdUnknown w -> put st { asNotice = Just ("unknown command: " <> w) }
+    CmdNew       -> whenIdle st (openNew st)
+    CmdSessions  -> whenIdle st (openSessions st)
+    CmdModel     -> whenIdle st (openModel st)
+  where
+    whenIdle st act
+      | asRunState st == Idle = act
+      | otherwise             = put st { asNotice = Just "press Esc to abort the run first" }
+
+-- | Overlay-mode keys: Esc closes, arrows move, Enter commits the selection.
+handleOverlay :: Overlay -> BrickEvent ResourceName SessionEvent -> EventM ResourceName AppState ()
+handleOverlay ov ev = case ev of
+  VtyEvent (V.EvKey V.KEsc [])   -> closeOverlay
+  VtyEvent (V.EvKey V.KUp [])    -> moveSel (-1)
+  VtyEvent (V.EvKey V.KDown [])  -> moveSel 1
+  VtyEvent (V.EvKey V.KEnter []) -> commitOverlay ov
+  _                              -> pure ()
+  where
+    closeOverlay = do
+      s <- get
+      put s { asMode = ModeNormal }
+    moveSel d = do
+      s <- get
+      case asMode s of
+        ModeOverlay o -> put s { asMode = ModeOverlay (overlayMove d o) }
+        ModeNormal    -> pure ()
+
+-- | Perform the action for the currently-selected overlay row.
+commitOverlay :: Overlay -> EventM ResourceName AppState ()
+commitOverlay ov = do
+  st <- get
+  case overlaySelected ov of
+    Nothing -> put st { asMode = ModeNormal }
+    Just i  -> case ovKind ov of
+      OverlayHelp _        -> put st { asMode = ModeNormal }
+      OverlaySessions _ ss -> maybe (put st { asMode = ModeNormal })
+                                    (\s -> switchTo s st { asNotice = Nothing })
+                                    (safeIndex ss i)
+      OverlayModels _ ms   -> maybe (put st { asMode = ModeNormal })
+                                    (\m -> setModel m st)
+                                    (safeIndex ms i)
+
+-- | /new: create a session with the config default model and switch to it.
+openNew :: AppState -> EventM ResourceName AppState ()
+openNew st = do
+  let env = asEnv st
+      mdl = defaultModel (envConfig env)
+  result <- liftIO (try (runAppM env (createSession mdl))
+                      :: IO (Either SomeException (Either AppError Session)))
+  case result of
+    Right (Right s) -> switchTo s st { asNotice = Just "new session created" }
+    Right (Left e)  -> put st { asNotice = Just ("error: " <> displayAppError e) }
+    Left e          -> put st { asNotice = Just ("error: " <> T.pack (displayException e)) }
+
+-- | /sessions: open a picker of all stored sessions.
+openSessions :: AppState -> EventM ResourceName AppState ()
+openSessions st = do
+  result <- liftIO (try (DB.listSessions (envDb (asEnv st)))
+                      :: IO (Either SomeException [Session]))
+  case result of
+    Left e   -> put st { asNotice = Just ("error: " <> T.pack (displayException e)) }
+    Right ss -> put st { asMode = ModeOverlay (sessionsOverlay (asSessionId st) ss) }
+
+-- | /model: open a picker of models for the configured providers.
+openModel :: AppState -> EventM ResourceName AppState ()
+openModel st = do
+  let env = asEnv st
+  result <- liftIO (try (DB.getSession (envDb env) (asSessionId st))
+                      :: IO (Either SomeException (Maybe Session)))
+  case result of
+    Left e         -> put st { asNotice = Just ("error: " <> T.pack (displayException e)) }
+    Right Nothing  -> put st { asNotice = Just "error: session not found" }
+    Right (Just s) -> case availableModels (providers (envConfig env)) of
+      [] -> put st { asNotice = Just "no models available" }
+      ms -> put st { asMode = ModeOverlay (modelsOverlay (sessionModel s) ms) }
+
+-- | Load a session's history and switch the UI to it.
+switchTo :: Session -> AppState -> EventM ResourceName AppState ()
+switchTo session st = do
+  result <- liftIO (try (DB.getMessages (envDb (asEnv st)) (sessionId session))
+                      :: IO (Either SomeException [Message]))
+  case result of
+    Left e     -> put st { asNotice = Just ("error: " <> T.pack (displayException e)) }
+    Right msgs -> do
+      put (applySwitch session msgs st)
+      M.vScrollToEnd chatScroll
+
+-- | Persist the chosen model to the session, then update the UI.
+setModel :: ModelId -> AppState -> EventM ResourceName AppState ()
+setModel mdl st = do
+  result <- liftIO (try (DB.updateSessionModel (envDb (asEnv st)) (asSessionId st) mdl)
+                      :: IO (Either SomeException ()))
+  case result of
+    Left e   -> put st { asMode = ModeNormal
+                       , asNotice = Just ("error: " <> T.pack (displayException e)) }
+    Right () -> put (applyModelSet mdl st)
+
+-- | Total list indexing.
+safeIndex :: [a] -> Int -> Maybe a
+safeIndex xs i
+  | i >= 0 && i < length xs = Just (xs !! i)
+  | otherwise               = Nothing
+
+-- | Pure: switch the UI to another session, resetting per-session view state.
+-- Preserves env and notice; clears the input.
+applySwitch :: Session -> [Message] -> AppState -> AppState
+applySwitch session msgs st = st
+  { asMessages         = Seq.fromList msgs
+  , asInput            = emptyEditor
+  , asSessionId        = sessionId session
+  , asTitle            = sessionTitle session
+  , asStatusLine       = modelLabel (sessionModel session)
+  , asPartialText      = ""
+  , asPartialReasoning = ""
+  , asRound            = Nothing
+  , asRunState         = Idle
+  , asMode             = ModeNormal
+  }
+
+-- | Pure: apply a model switch (status line + confirmation notice + close).
+applyModelSet :: ModelId -> AppState -> AppState
+applyModelSet mdl st = st
+  { asStatusLine = modelLabel mdl
+  , asMode       = ModeNormal
+  , asNotice     = Just ("model set to " <> modelLabel mdl)
+  }
 
 -- | Lines scrolled per ↑ / ↓ keypress.
 lineStep :: Int

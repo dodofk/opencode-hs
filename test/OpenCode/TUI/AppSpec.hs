@@ -20,6 +20,8 @@ import OpenCode.TUI.App
   ( appendUserMessage
   , applyEnter
   , applyEvent
+  , applyModelSet
+  , applySwitch
   , currentInput
   , initialState
   , modelLabel
@@ -179,6 +181,30 @@ spec = do
     it "SessionTitleChanged updates asTitle" $ do
       st <- stateWithInput ""
       asTitle (applyEvent (SessionTitleChanged "My Chat") st) `shouldBe` "My Chat"
+
+  describe "applySwitch (session switch reducer)" $
+    it "replaces history/id/title/model and resets view state" $ do
+      st0 <- stateWithInput "typing"
+      let other = Session (SessionId "s-other") "Other Chat"
+                    (ModelId Anthropic "claude-opus-4-5") t0
+          st1 = (applyEvent (PartialText "draft") st0) { asRound = Just (2, 10) }
+          st2 = applySwitch other [userMsg, userMsg] st1
+      asSessionId st2 `shouldBe` SessionId "s-other"
+      asTitle st2 `shouldBe` "Other Chat"
+      asStatusLine st2 `shouldBe` "anthropic:claude-opus-4-5"
+      Seq.length (asMessages st2) `shouldBe` 2
+      asPartialText st2 `shouldBe` ""
+      asRound st2 `shouldBe` Nothing
+      asRunState st2 `shouldBe` Idle
+      asMode st2 `shouldBe` ModeNormal
+
+  describe "applyModelSet (model switch reducer)" $
+    it "updates the status line and sets a confirmation notice" $ do
+      st0 <- stateWithInput ""
+      let st1 = applyModelSet (ModelId Anthropic "claude-opus-4-5") st0
+      asStatusLine st1 `shouldBe` "anthropic:claude-opus-4-5"
+      asNotice st1 `shouldBe` Just "model set to anthropic:claude-opus-4-5"
+      asMode st1 `shouldBe` ModeNormal
 
   describe "startRun (forked agentic run)" $ do
 
