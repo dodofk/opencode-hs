@@ -335,6 +335,7 @@ highlightedCommand :: AppState -> Maybe Text
 highlightedCommand st =
   case commandSuggestions (currentInput st) of
     [] -> Nothing
+    -- safeIndex is the outer guard; clampSel already keeps the index valid here.
     xs -> fst <$> safeIndex xs (clampSel (length xs) (asSuggestSel st))
 
 -- | Pure: move the autocomplete highlight by a delta, clamped to the current

@@ -225,6 +225,7 @@ spec = do
     it "is a no-op when no suggestions are showing" $ do
       st <- stateWithInput "hello"
       asSuggestSel (applySuggestMove 1 st) `shouldBe` 0
+      currentInput (applySuggestMove 1 st) `shouldBe` "hello"
 
   describe "applyComplete (Tab completion)" $ do
     it "completes to the highlighted command and resets the highlight" $ do
@@ -237,6 +238,12 @@ spec = do
       st0 <- stateWithInput "/"
       let st1 = applyComplete (applySuggestMove 2 st0)   -- 0:/new 1:/sessions 2:/model
       currentInput st1 `shouldBe` "/model"
+
+    it "is idempotent on an already-exact command" $ do
+      st0 <- stateWithInput "/sessions"
+      let st1 = applyComplete st0
+      currentInput st1 `shouldBe` "/sessions"
+      asSuggestSel st1 `shouldBe` 0
 
     it "is a no-op when no suggestions are showing" $ do
       st <- stateWithInput "hello"
