@@ -47,9 +47,10 @@ spec = do
 
   describe "helpOverlay / catalog consistency" $
     it "lists every catalog command name in the help rows" $ do
-      let rows  = overlayLabels (ovKind helpOverlay)
-          names = [ n | (_, n, _) <- commandCatalog ]
-      all (\n -> any (n `T.isInfixOf`) rows) names `shouldBe` True
+      let rows    = overlayLabels (ovKind helpOverlay)
+          names   = [ n | (_, n, _) <- commandCatalog ]
+          missing = [ n | n <- names, not (any (n `T.isInfixOf`) rows) ]
+      missing `shouldBe` []
   where
     m1 = ModelId OpenAI "gpt-4o"
     m2 = ModelId Anthropic "claude-opus-4-5"
