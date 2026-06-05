@@ -19,6 +19,9 @@ module OpenCode.TUI.App
   , applyEvent
   , applySwitch
   , applyModelSet
+  , applySuggestMove
+  , applyComplete
+  , highlightedCommand
   , currentInput
   , inputContents
   , shouldSubmit
@@ -69,7 +72,7 @@ import OpenCode.TUI.Render
   , userAttr
   )
 import OpenCode.Config (Config (..))
-import OpenCode.TUI.Command (Command (..), parseCommand)
+import OpenCode.TUI.Command (Command (..), parseCommand, commandSuggestions, clampSel)
 import OpenCode.TUI.Overlay
   ( helpOverlay, modelsOverlay, sessionsOverlay, overlayMove, overlaySelected )
 import OpenCode.TUI.Types
@@ -324,6 +327,33 @@ applyModelSet mdl st = st
   , asMode       = ModeNormal
   , asNotice     = Just ("model set to " <> modelLabel mdl)
   }
+
+-- | The currently-highlighted command name, if the autocomplete panel is
+-- showing for the current input. Total: 'clampSel' keeps the index in range
+-- and 'safeIndex' guards the lookup.
+highlightedCommand :: AppState -> Maybe Text
+highlightedCommand st =
+  case commandSuggestions (currentInput st) of
+    [] -> Nothing
+    xs -> fst <$> safeIndex xs (clampSel (length xs) (asSuggestSel st))
+
+-- | Pure: move the autocomplete highlight by a delta, clamped to the current
+-- match count. No-op when no suggestions are showing.
+applySuggestMove :: Int -> AppState -> AppState
+applySuggestMove delta st =
+  st { asSuggestSel = clampSel n (asSuggestSel st + delta) }
+  where n = length (commandSuggestions (currentInput st))
+
+-- | Pure: complete the input to the highlighted command name (the rebuilt
+-- editor's cursor lands at the end) and reset the highlight. No-op when no
+-- suggestions are showing.
+applyComplete :: AppState -> AppState
+applyComplete st = case highlightedCommand st of
+  Nothing   -> st
+  Just name -> st
+    { asInput      = E.editorText InputEditor (Just 1) name
+    , asSuggestSel = 0
+    }
 
 -- | Lines scrolled per ↑ / ↓ keypress.
 lineStep :: Int

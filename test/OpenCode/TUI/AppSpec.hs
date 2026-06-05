@@ -18,9 +18,11 @@ import OpenCode.Session.Events (RunState (..), SessionEvent (..))
 import OpenCode.TestEnv (drainBChan, newDummyEnv, newDummyEnvNoKey)
 import OpenCode.TUI.App
   ( appendUserMessage
+  , applyComplete
   , applyEnter
   , applyEvent
   , applyModelSet
+  , applySuggestMove
   , applySwitch
   , currentInput
   , initialState
@@ -206,6 +208,39 @@ spec = do
       asStatusLine st1 `shouldBe` "anthropic:claude-opus-4-5"
       asNotice st1 `shouldBe` Just "model set to anthropic:claude-opus-4-5"
       asMode st1 `shouldBe` ModeNormal
+
+  describe "applySuggestMove (autocomplete highlight)" $ do
+    it "moves the highlight down within the match list" $ do
+      st <- stateWithInput "/"          -- 5 matches
+      asSuggestSel (applySuggestMove 1 st) `shouldBe` 1
+
+    it "clamps the highlight at the bottom" $ do
+      st <- stateWithInput "/"
+      asSuggestSel (applySuggestMove 99 st) `shouldBe` 4
+
+    it "clamps the highlight at the top" $ do
+      st <- stateWithInput "/"
+      asSuggestSel (applySuggestMove (-99) st) `shouldBe` 0
+
+    it "is a no-op when no suggestions are showing" $ do
+      st <- stateWithInput "hello"
+      asSuggestSel (applySuggestMove 1 st) `shouldBe` 0
+
+  describe "applyComplete (Tab completion)" $ do
+    it "completes to the highlighted command and resets the highlight" $ do
+      st0 <- stateWithInput "/se"
+      let st1 = applyComplete st0
+      currentInput st1 `shouldBe` "/sessions"
+      asSuggestSel st1 `shouldBe` 0
+
+    it "completes the row chosen with the arrows" $ do
+      st0 <- stateWithInput "/"
+      let st1 = applyComplete (applySuggestMove 2 st0)   -- 0:/new 1:/sessions 2:/model
+      currentInput st1 `shouldBe` "/model"
+
+    it "is a no-op when no suggestions are showing" $ do
+      st <- stateWithInput "hello"
+      currentInput (applyComplete st) `shouldBe` "hello"
 
   describe "startRun (forked agentic run)" $ do
 
