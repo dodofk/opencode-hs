@@ -43,7 +43,7 @@ import Control.Concurrent.STM (atomically, writeTVar)
 import Control.Exception (SomeException, displayException, try)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.State.Class (get, put)
+import Control.Monad.State.Class (get, modify, put)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Sequence ((|>))
 import qualified Data.Sequence as Seq
@@ -162,19 +162,64 @@ handleEvent ev = do
     ModeOverlay ov -> handleOverlay ov ev
     ModeNormal     -> handleNormal ev
 
--- | Normal-mode keys: Esc aborts a run, Enter parses commands or submits a
--- prompt, arrows/page scroll, everything else feeds the editor.
+-- | Normal-mode keys. Esc and page-scroll are unconditional. When the slash
+-- autocomplete panel is active, Up/Down move the highlight, Tab completes, and
+-- Enter runs the highlighted command; otherwise the keys keep their existing
+-- meaning (Enter submits, Up/Down scroll, others edit the input).
 handleNormal :: BrickEvent ResourceName SessionEvent -> EventM ResourceName AppState ()
 handleNormal (VtyEvent (V.EvKey V.KEsc [])) = do
   st <- get
   liftIO (atomically (writeTVar (envAbort (asEnv st)) True))
-handleNormal (VtyEvent (V.EvKey V.KEnter []))     = onEnter
-handleNormal (VtyEvent (V.EvKey V.KUp       []))  = M.vScrollBy chatScroll (-lineStep)
-handleNormal (VtyEvent (V.EvKey V.KDown     []))  = M.vScrollBy chatScroll lineStep
-handleNormal (VtyEvent (V.EvKey V.KPageUp   []))  = M.vScrollBy chatScroll (-pageStep)
-handleNormal (VtyEvent (V.EvKey V.KPageDown []))  = M.vScrollBy chatScroll pageStep
-handleNormal (VtyEvent ev) = zoom inputL (E.handleEditorEvent (VtyEvent ev))
-handleNormal _ = pure ()
+handleNormal (VtyEvent (V.EvKey V.KPageUp   [])) = M.vScrollBy chatScroll (-pageStep)
+handleNormal (VtyEvent (V.EvKey V.KPageDown [])) = M.vScrollBy chatScroll pageStep
+handleNormal ev = do
+  st <- get
+  if suggestionsActive st
+    then handleSuggest ev
+    else handleEdit ev
+
+-- | Whether the autocomplete panel is currently showing.
+suggestionsActive :: AppState -> Bool
+suggestionsActive = not . null . commandSuggestions . currentInput
+
+-- | Keys while the autocomplete panel is open.
+handleSuggest :: BrickEvent ResourceName SessionEvent -> EventM ResourceName AppState ()
+handleSuggest = \case
+  VtyEvent (V.EvKey V.KUp   [])        -> modify (applySuggestMove (-1))
+  VtyEvent (V.EvKey V.KDown [])        -> modify (applySuggestMove 1)
+  VtyEvent (V.EvKey (V.KChar '\t') []) -> modify applyComplete
+  VtyEvent (V.EvKey V.KEnter [])       -> runHighlighted
+  ev                                   -> editAndReset ev
+
+-- | Normal editing keys when no panel is open (the pre-M13.1 behavior).
+handleEdit :: BrickEvent ResourceName SessionEvent -> EventM ResourceName AppState ()
+handleEdit = \case
+  VtyEvent (V.EvKey V.KEnter [])     -> onEnter
+  VtyEvent (V.EvKey V.KUp   [])      -> M.vScrollBy chatScroll (-lineStep)
+  VtyEvent (V.EvKey V.KDown [])      -> M.vScrollBy chatScroll lineStep
+  VtyEvent vev                       -> zoom inputL (E.handleEditorEvent (VtyEvent vev))
+  _                                  -> pure ()
+
+-- | Feed an editing key to the editor, then reset the highlight to the top (the
+-- match set may have changed).
+editAndReset :: BrickEvent ResourceName SessionEvent -> EventM ResourceName AppState ()
+editAndReset ev = do
+  case ev of
+    VtyEvent vev -> zoom inputL (E.handleEditorEvent (VtyEvent vev))
+    _            -> pure ()
+  modify (\s -> s { asSuggestSel = 0 })
+
+-- | Enter while the panel is open: run the highlighted command via the existing
+-- dispatcher (so run-in-flight gating and notices are inherited). Falls back to
+-- the normal submit path if, defensively, there is no highlight.
+runHighlighted :: EventM ResourceName AppState ()
+runHighlighted = do
+  st <- get
+  case highlightedCommand st of
+    Nothing   -> onEnter
+    Just name -> do
+      put st { asInput = emptyEditor, asNotice = Nothing, asSuggestSel = 0 }
+      maybe (pure ()) dispatchCommand (parseCommand name)
 
 -- | The Enter action in normal mode: a slash command dispatches; anything else
 -- is submitted to the LLM exactly as before.
