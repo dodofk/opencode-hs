@@ -137,6 +137,11 @@ Type these at the input line (Enter to run):
 | `/help`     | Show keys and commands                                    |
 | `/quit`     | Exit (same as Ctrl-C)                                     |
 
+**Autocomplete:** as soon as the input line begins with `/`, a panel lists the
+matching commands with descriptions. Use `↑`/`↓` to highlight, `Tab` to complete
+the highlighted command into the input, and `Enter` to run it. The panel
+disappears when the line no longer starts with `/`.
+
 Pickers are modal: `↑/↓` to move, `Enter` to confirm, `Esc` to cancel.
 Context-changing commands (`/new`, `/sessions`, `/model`) are disabled while a
 run is streaming — press `Esc` to abort first.

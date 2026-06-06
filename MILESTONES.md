@@ -26,6 +26,7 @@ reuses). Each gets its own spec → plan → implementation cycle.
 | M11 | Anthropic provider                     | done      | `3576aa3..`        |
 | M12 | Hardening                              | done      | `3322a4e..`        |
 | M13 | TUI interaction layer (slash + sessions + model) | done    | `34ac668..` |
+| M13.1 | Slash-command autocomplete             | done      | `8f2e9b1..`        |
 | M14 | MCP client (dynamic external tools)    | planned   | —                  |
 | M15 | Skill system (named instruction bundles) | planned | —                  |
 
@@ -535,6 +536,30 @@ switching.
 - Typing `/help` shows available commands without contacting the LLM.
 - `/sessions` opens an overlay; selecting a different session loads its history.
 - `/model <provider:model>` changes the status-bar model and the next round uses it.
+
+## M13.1 — Slash-command autocomplete — DONE
+
+**Goal**: When the input line begins with `/`, show a live, keyboard-navigable
+panel of matching commands (with descriptions) so command names need not be
+memorized. An enhancement to M13; numbered M13.1 so M14/M15 numbering is
+untouched.
+
+### Scope
+
+- **Non-modal panel**: shown above the input whenever the line starts with `/`
+  and matches a command; derived purely from the input text (`commandSuggestions`).
+- **Navigation**: `↑`/`↓` move the highlight, `Tab` completes the highlighted
+  command into the input, `Enter` runs it via the existing dispatcher.
+- **DRY**: the `/help` command list is re-derived from a single `commandCatalog`
+  shared with the panel.
+
+### Acceptance
+
+- Typing `/` shows all five commands; typing more narrows by name prefix.
+- `Tab` completes the highlighted command; `Enter` runs it (with the same
+  run-in-flight gating as typing it out).
+- The panel disappears once the line no longer starts with `/`; existing
+  normal-mode behavior (scroll, submit, pickers) is unchanged otherwise.
 
 ## M14 — MCP client (sub-project B) — PLANNED
 
