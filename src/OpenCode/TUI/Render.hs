@@ -3,7 +3,8 @@
 -- Renders the chat history in a scrollable viewport, a status bar, and the
 -- input editor. While a run is active ('asRunState' /= 'Idle') and
 -- 'asPartialText' is non-empty, appends a dim in-flight assistant message at
--- the bottom of the chat (M9).
+-- the bottom of the chat (M9). When the input begins with @\/@, a 'suggestBox'
+-- panel of matching slash commands is shown above the input box (M13.1).
 module OpenCode.TUI.Render
   ( drawUI
     -- * Attribute names (consumed by the App's attr map)
