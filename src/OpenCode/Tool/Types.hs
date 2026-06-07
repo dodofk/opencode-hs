@@ -152,6 +152,9 @@ data ToolDef input output where
   BashTool      :: ToolDef BashInput      BashOutput
   GlobTool      :: ToolDef GlobInput      [FilePath]
   GrepTool      :: ToolDef GrepInput      [GrepMatch]
+  DynamicTool   :: ToolDef Value          Text
+    -- ^ MCP / runtime-discovered tools: raw JSON in, rendered text out. The tag
+    -- is never inspected (see 'executeTool'); it exists only to fill 'toolDef'.
 
 -- | Existential wrapper: pairs a GADT tag with its executor and renderer.
 -- Only 'FromJSON' is required on the input type — the output renderer is

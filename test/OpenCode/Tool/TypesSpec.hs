@@ -59,6 +59,22 @@ spec = do
       result <- runTool reg "echo" (object ["path" .= ("/tmp/x" :: Text), "content" .= ("hello" :: Text)])
       result `shouldBe` Right "hello"
 
+  describe "DynamicTool (runtime tools)" $
+    it "executes a Value->Text dynamic tool via executeTool" $ do
+      let dynEcho = SomeTool
+            { toolDef     = DynamicTool
+            , toolName    = "echo"
+            , toolDesc    = "echo"
+            , toolSchema  = Aeson.object ["type" Aeson..= ("object" :: Text)]
+            , toolExecute = pure . Text.pack . show
+            , toolRender  = id
+            }
+          reg = registerTool dynEcho emptyRegistry
+      result <- runTool reg "echo" (Aeson.object ["a" Aeson..= (1 :: Int)])
+      result `shouldSatisfy` \case
+        Right out -> "\"a\"" `Text.isInfixOf` out
+        Left _    -> False
+
 -- ---------------------------------------------------------------------------
 -- Test helpers
 -- ---------------------------------------------------------------------------
