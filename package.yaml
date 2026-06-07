@@ -129,6 +129,18 @@ executables:
     dependencies:
       - opencode-hs
 
+  opencode-mcp-mock:
+    main:         Main.hs
+    source-dirs:  test/mcp-mock
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - aeson
+      - bytestring
+      - text
+
 
 tests:
   opencode-hs-test:
