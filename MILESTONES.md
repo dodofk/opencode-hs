@@ -27,7 +27,7 @@ reuses). Each gets its own spec → plan → implementation cycle.
 | M12 | Hardening                              | done      | `3322a4e..`        |
 | M13 | TUI interaction layer (slash + sessions + model) | done    | `34ac668..` |
 | M13.1 | Slash-command autocomplete             | done      | `8f2e9b1..`        |
-| M14 | MCP client (dynamic external tools)    | planned   | —                  |
+| M14 | MCP client (dynamic external tools)    | done      | `730a582..`        |
 | M15 | Skill system (named instruction bundles) | planned | —                  |
 
 MCP support was **dropped from v1** and is now scheduled post-v1 as **M14**; a
@@ -561,28 +561,39 @@ untouched.
 - The panel disappears once the line no longer starts with `/`; existing
   normal-mode behavior (scroll, submit, pickers) is unchanged otherwise.
 
-## M14 — MCP client (sub-project B) — PLANNED
+## M14 — MCP client (sub-project B) — DONE
 
-**Goal**: Connect to external MCP (Model Context Protocol) servers over stdio
-and merge their advertised tools into the registry, so the agent can call tools
-it doesn't ship with.
+Shipped: commits `730a582..`.
 
-### Scope (to be refined in brainstorming)
+Outcome: a hand-rolled stdio JSON-RPC MCP client added with **no new
+dependencies** — pure codecs in `OpenCode.MCP.Protocol`, a process-managing
+client in `OpenCode.MCP.Client`, and converters in `OpenCode.MCP.Adapters`.
+`Config.mcpServers` parses an `mcpServers` block (command, args, env, enabled)
+from `config.yaml`. The `ToolDef` GADT gained a `DynamicTool` tag so
+runtime-discovered tools fit the existing typed registry without unsafe coercions.
 
-- **Dynamic-tool path**: extend the tool layer so tools discovered at runtime
-  (no compile-time GADT tag) can be registered — e.g. a `Value -> AppM Value`
-  executor with a server-supplied JSON schema.
-- **Config**: an `mcpServers` section (command, args, env) in `config.yaml`.
-- **stdio JSON-RPC**: spawn each configured server, perform the MCP handshake,
-  `tools/list`, and register each discovered tool; `tools/call` on invocation.
-- **Lifecycle / errors**: a server that fails to start or crashes degrades
-  gracefully (its tools are absent), it does not take down the session.
+At run startup (`OpenCode.MCP.Startup` wired into `Run.hs` via
+`AppEnv.envMcp`), each enabled server is spawned under a `bracket` that shuts it
+down on exit. For each live server the client performs the MCP initialize
+handshake, calls `tools/list`, and merges the results into the registry
+namespaced as `<server>_<tool>`. Resources are synthesized into two tools per
+server (`<server>_list_resources` and `<server>_read_resource`). A server that
+fails to start is skipped with a stderr diagnostic; the rest of the app
+continues.
 
-### Acceptance (to be finalized in spec)
+MCP prompts are fetched via `prompts/list` and injected into the `/` autocomplete
+panel and the `/prompts` overlay (a new modal picker). Selecting a prompt in the
+picker — or typing `/<server>_<prompt> key=value …` at the input line — invokes
+`prompts/get` and appends the returned messages to the conversation context.
 
-- With a configured MCP server, its tools appear in the system prompt and are callable.
-- A round that calls an MCP tool returns the server's result as a `ToolResultPart`.
-- A misconfigured/missing server logs a clear error and the rest of the app runs.
+An in-repo `opencode-mcp-mock` test executable stands in for a real MCP server;
+a deterministic integration test spawns it, exercises the full handshake +
+`tools/list` + `tools/call` round-trip, and asserts the result. `list`,
+`export`, and `config check` spawn no servers.
+
+M15 (skill system) is next and will fold MCP prompts in as one skill source,
+unifying named instruction bundles across local files and remote MCP servers
+under a single invocation model.
 
 ## M15 — Skill system (sub-project C) — PLANNED
 

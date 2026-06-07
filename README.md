@@ -134,6 +134,7 @@ Type these at the input line (Enter to run):
 | `/new`      | Start a new session and switch to it                      |
 | `/sessions` | Open a picker to switch to another stored session         |
 | `/model`    | Open a picker to change this session's model (persisted)  |
+| `/prompts`  | Open a picker to run an MCP prompt                        |
 | `/help`     | Show keys and commands                                    |
 | `/quit`     | Exit (same as Ctrl-C)                                     |
 
@@ -145,6 +146,34 @@ disappears when the line no longer starts with `/`.
 Pickers are modal: `↑/↓` to move, `Enter` to confirm, `Esc` to cancel.
 Context-changing commands (`/new`, `/sessions`, `/model`) are disabled while a
 run is streaming — press `Esc` to abort first.
+
+## MCP servers
+
+`opencode-hs` can connect to external [Model Context Protocol](https://modelcontextprotocol.io)
+servers over stdio and use their **tools**, **resources**, and **prompts**.
+
+Configure servers in `~/.config/opencode-hs/config.yaml`:
+
+```yaml
+mcpServers:
+  filesystem:
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    env: { }          # optional, merged over the inherited environment
+    enabled: true     # optional, default true
+```
+
+- **Tools** are exposed to the model namespaced as `<server>_<tool>` (e.g.
+  `filesystem_read_file`).
+- **Resources** are exposed as two tools per server: `<server>_list_resources`
+  and `<server>_read_resource`.
+- **Prompts** appear in the `/` autocomplete and the `/prompts` picker; invoke
+  one with `/<server>_<prompt>` (add `key=value` arguments after the name).
+
+Servers are started when a session runs (the TUI and `run`), and shut down on
+exit. A server that fails to start is skipped with a message on stderr; the rest
+of the app continues. The `list`, `export`, and `config check` commands do not
+start any servers.
 
 ## Troubleshooting
 
