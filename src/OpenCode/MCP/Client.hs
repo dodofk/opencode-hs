@@ -83,15 +83,14 @@ connect name cfg = do
     Left e -> pure (Left (SpawnFailed (T.pack (show e))))
     Right (hin, hout, herr, ph) -> do
       hSetBuffering hin LineBuffering
-      hSetBuffering hout LineBuffering
       _    <- forkIO (drainHandle herr)
       lock <- newMVar ()
       idr  <- newIORef 0
       let base = McpClient name emptyCaps [] [] [] hin hout ph lock idr
       r <- try (handshake base)
       case (r :: Either SomeException (Either McpError McpClient)) of
-        Left e          -> killProc ph hin >> pure (Left (HandshakeFailed (T.pack (show e))))
-        Right (Left er) -> killProc ph hin >> pure (Left er)
+        Left e          -> killProc ph hin hout >> pure (Left (HandshakeFailed (T.pack (show e))))
+        Right (Left er) -> killProc ph hin hout >> pure (Left er)
         Right (Right c) -> pure (Right c)
 
 spawnServer :: McpServerConfig -> IO (Handle, Handle, Handle, ProcessHandle)
@@ -183,8 +182,7 @@ call :: McpClient -> Text -> Value -> IO (Either McpError Value)
 call c method params = withMVar (mcLock c) $ \_ -> do
   i <- atomicModifyIORef' (mcNextId c) (\n -> (n + 1, n + 1))
   res <- timeout callTimeoutMicros $ do
-    BL.hPut (mcIn c) (encodeRequest (JsonRpcRequest i method params))
-    BL.hPut (mcIn c) "\n"
+    BL.hPut (mcIn c) (encodeRequest (JsonRpcRequest i method params) <> "\n")
     hFlush (mcIn c)
     awaitResponse c i
   pure $ case res of
@@ -211,10 +209,11 @@ awaitResponse c expectId = loop
                     Left jerr -> Left (CallFailed (errMessage jerr))
                     Right v   -> Right v
 
+-- | Send a fire-and-forget notification. NOTE: bypasses 'mcLock'; only safe to
+-- call from the sequential handshake path, not concurrently with a 'call'.
 sendNotification :: McpClient -> Text -> Value -> IO ()
 sendNotification c method params = do
-  BL.hPut (mcIn c) (encodeNotification (JsonRpcNotification method params))
-  BL.hPut (mcIn c) "\n"
+  BL.hPut (mcIn c) (encodeNotification (JsonRpcNotification method params) <> "\n")
   hFlush (mcIn c)
 
 -- ---------------------------------------------------------------------------
@@ -222,11 +221,12 @@ sendNotification c method params = do
 -- ---------------------------------------------------------------------------
 
 shutdown :: McpClient -> IO ()
-shutdown c = killProc (mcProc c) (mcIn c)
+shutdown c = killProc (mcProc c) (mcIn c) (mcOut c)
 
-killProc :: ProcessHandle -> Handle -> IO ()
-killProc ph hin = do
+killProc :: ProcessHandle -> Handle -> Handle -> IO ()
+killProc ph hin hout = do
   ignore (hClose hin)
+  ignore (hClose hout)
   ignore (terminateProcess ph)
   ignore (void (waitForProcess ph))
   where ignore act = act `catch` \(_ :: SomeException) -> pure ()
