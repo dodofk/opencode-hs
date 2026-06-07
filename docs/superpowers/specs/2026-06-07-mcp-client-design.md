@@ -262,9 +262,10 @@ yield diagnostics (server skipped). `Run.hs`:
 3. Build `AppEnv { envRegistry = registry', envMcp = clients, … }`.
 4. Wrap the run body in `bracket (pure clients) (mapM_ shutdown) (const …)` so
    every client is shut down on exit (normal or exception).
-5. Surface diagnostics: headless → write each to stderr; TUI → prepend a startup
-   banner message to the transcript (a `RoleTool` message with an `ErrorPart`
-   per unavailable server, e.g. `MCP server 'foo' unavailable: <reason>`).
+5. Surface diagnostics: write each to **stderr** (printed before the TUI takes
+   the screen; visible in headless mode), e.g.
+   `MCP server 'foo' unavailable: <reason>`. An in-chat startup banner for the
+   TUI is a future enhancement (out of scope for v1).
 
 ### 6. TUI surface for prompts
 
@@ -293,10 +294,11 @@ yield diagnostics (server skipped). `Run.hs`:
 - **Invocation (enter handler):** when the first input token (minus `/`) matches
   a known `peFullName`, route to prompt invocation instead of `parseCommand`:
   `parsePromptInvocation` → check required args present → `liftIO (getPrompt …)`
-  → map each `PromptMessage` to a `Message` (role `user`/`assistant` → our
-  `Role`; text → `TextPart`), append to the transcript, persist, and start an
-  agentic run via the existing run path. Missing required args, or a `getPrompt`
-  `Left`, → `asNotice` error (no run).
+  → **combine the returned messages' text into a single user turn** and submit it
+  through the existing typed-message path (`startRun`), which persists the user
+  message and starts the agentic loop. (v1 ignores per-message roles — MCP
+  prompts almost always return user content.) Missing required args, or a
+  `getPrompt` `Left`, → `asNotice` error (no run).
 
 ## Data flow
 
@@ -319,7 +321,7 @@ User: "/filesystem_summarize path=/tmp/a"  ──▶ enter handler
 
 | Failure | Behavior |
 |---|---|
-| Server won't spawn / handshake fails | `McpDiagnostic` recorded, server skipped, app continues. Headless → stderr; TUI → startup banner message. |
+| Server won't spawn / handshake fails | `McpDiagnostic` recorded, server skipped, app continues. Reported to stderr (in-chat TUI banner is a future enhancement). |
 | Tool/resource call: timeout / crash / JSON-RPC error / decode error | Executor returns `Left` → `ToolError` → rendered as a `ToolResultPart`/`ErrorPart`; the session continues. |
 | Tool result with `isError = true` | Rendered as normal text (server's error message reaches the LLM). |
 | `prompts/get` failure or missing required arg | `asNotice` error; no run started. |
