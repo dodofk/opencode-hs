@@ -72,6 +72,7 @@ import OpenCode.TUI.Render
   , userAttr
   )
 import OpenCode.Config (Config (..))
+import OpenCode.MCP.Adapters (promptSuggestEntries)
 import OpenCode.TUI.Command (Command (..), parseCommand, commandSuggestions, clampSel)
 import OpenCode.TUI.Overlay
   ( helpOverlay, modelsOverlay, sessionsOverlay, overlayMove, overlaySelected )
@@ -178,9 +179,14 @@ handleNormal ev = do
     then handleSuggest ev
     else handleEdit ev
 
+-- | Autocomplete entries for the current state: built-ins + MCP prompts.
+suggestEntries :: AppState -> [(Text, Text)]
+suggestEntries st =
+  commandSuggestions (promptSuggestEntries (envMcp (asEnv st))) (currentInput st)
+
 -- | Whether the autocomplete panel is currently showing.
 suggestionsActive :: AppState -> Bool
-suggestionsActive = not . null . commandSuggestions . currentInput
+suggestionsActive = not . null . suggestEntries
 
 -- | Keys while the autocomplete panel is open.
 handleSuggest :: BrickEvent ResourceName SessionEvent -> EventM ResourceName AppState ()
@@ -378,7 +384,7 @@ applyModelSet mdl st = st
 -- and 'safeIndex' guards the lookup.
 highlightedCommand :: AppState -> Maybe Text
 highlightedCommand st =
-  case commandSuggestions (currentInput st) of
+  case suggestEntries st of
     [] -> Nothing
     -- safeIndex is the outer guard; clampSel already keeps the index valid here.
     xs -> fst <$> safeIndex xs (clampSel (length xs) (asSuggestSel st))
@@ -388,7 +394,7 @@ highlightedCommand st =
 applySuggestMove :: Int -> AppState -> AppState
 applySuggestMove delta st =
   st { asSuggestSel = clampSel n (asSuggestSel st + delta) }
-  where n = length (commandSuggestions (currentInput st))
+  where n = length (suggestEntries st)
 
 -- | Pure: complete the input to the highlighted command name (the rebuilt
 -- editor's cursor lands at the end) and reset the highlight. No-op when no

@@ -40,33 +40,46 @@ spec = do
 
   describe "commandSuggestions" $ do
     it "lists every command for a bare slash, in catalog order" $
-      map fst (commandSuggestions "/") `shouldBe`
+      map fst (commandSuggestions [] "/") `shouldBe`
         ["/new", "/sessions", "/model", "/help", "/quit"]
 
     it "filters by case-insensitive name prefix" $
-      map fst (commandSuggestions "/se") `shouldBe` ["/sessions"]
+      map fst (commandSuggestions [] "/se") `shouldBe` ["/sessions"]
 
     it "is case-insensitive on the typed prefix" $
-      map fst (commandSuggestions "/SE") `shouldBe` ["/sessions"]
+      map fst (commandSuggestions [] "/SE") `shouldBe` ["/sessions"]
 
     it "tolerates leading whitespace" $
-      map fst (commandSuggestions "  /m") `shouldBe` ["/model"]
+      map fst (commandSuggestions [] "  /m") `shouldBe` ["/model"]
 
     it "returns nothing for non-slash input" $
-      commandSuggestions "hello" `shouldBe` []
+      commandSuggestions [] "hello" `shouldBe` []
 
     it "returns nothing for an unknown command" $
-      commandSuggestions "/foo" `shouldBe` []
+      commandSuggestions [] "/foo" `shouldBe` []
 
     it "pairs each match with its description" $
-      lookup "/model" (commandSuggestions "/m")
+      lookup "/model" (commandSuggestions [] "/m")
         `shouldBe` Just "change model (this session)"
 
     it "returns nothing for empty input" $
-      commandSuggestions "" `shouldBe` []
+      commandSuggestions [] "" `shouldBe` []
 
     it "returns nothing for whitespace-only input" $
-      commandSuggestions "  " `shouldBe` []
+      commandSuggestions [] "  " `shouldBe` []
+
+  describe "commandSuggestions with dynamic prompt entries" $ do
+    let prompts = [("/srv_greet", "greet someone"), ("/srv_bye", "say bye")]
+
+    it "includes prompts after built-ins for a bare slash" $
+      map fst (commandSuggestions prompts "/")
+        `shouldBe` ["/new", "/sessions", "/model", "/help", "/quit", "/srv_greet", "/srv_bye"]
+
+    it "matches a prompt by prefix" $
+      commandSuggestions prompts "/srv_g" `shouldBe` [("/srv_greet", "greet someone")]
+
+    it "still returns [] for non-slash input" $
+      commandSuggestions prompts "hello" `shouldBe` []
 
   describe "clampSel" $ do
     it "clamps a negative index to zero"      $ clampSel 3 (-5) `shouldBe` 0

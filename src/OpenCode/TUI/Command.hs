@@ -56,25 +56,28 @@ commandCatalog =
   , (CmdQuit,     "/quit",     "exit")
   ]
 
--- | Autocomplete matches for the current input line. Empty unless the trimmed
--- input begins with @\/@; otherwise the catalog rows whose @\/name@ has the typed
--- first token as a case-insensitive prefix.
+-- | Autocomplete matches for the current input line, merging the built-in
+-- command catalog with @dynamic@ entries (e.g. MCP prompts) supplied by the
+-- caller. Empty unless the trimmed input begins with @\/@; otherwise the rows
+-- whose @\/name@ has the typed first token as a case-insensitive prefix.
 --
 -- @\/@ alone matches every command; @\/se@ matches @\/sessions@; @\/foo@ matches
--- nothing. Returns @(name, description)@ pairs in catalog order.
-commandSuggestions :: Text -> [(Text, Text)]
-commandSuggestions raw =
+-- nothing. Returns @(name, description)@ pairs in catalog order (built-ins first,
+-- then dynamic).
+commandSuggestions :: [(Text, Text)] -> Text -> [(Text, Text)]
+commandSuggestions dynamic raw =
   case T.uncons trimmed of
     Just ('/', _) ->
       [ (name, desc)
-      | (_, name, desc) <- commandCatalog
+      | (name, desc) <- allEntries
       , token `T.isPrefixOf` T.toLower name
       ]
     _ -> []
   where
-    trimmed = T.strip raw
-    token   = T.toLower firstWord
-    firstWord = case T.words trimmed of
+    allEntries = [ (name, desc) | (_, name, desc) <- commandCatalog ] ++ dynamic
+    trimmed    = T.strip raw
+    token      = T.toLower firstWord
+    firstWord  = case T.words trimmed of
       (w:_) -> w
       []    -> ""
 

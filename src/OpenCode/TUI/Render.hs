@@ -48,6 +48,8 @@ import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as T
 
+import OpenCode.App.Types (AppEnv (..))
+import OpenCode.MCP.Adapters (promptSuggestEntries)
 import OpenCode.Session.Events (RunState (..))
 import OpenCode.TUI.Command (clampSel, commandSuggestions)
 import OpenCode.TUI.Overlay (overlayLabels)
@@ -131,7 +133,7 @@ renderOverlay ov =
 -- bar (same look as overlay rows).
 suggestBox :: AppState -> Widget ResourceName
 suggestBox st =
-  case commandSuggestions (currentInputText st) of
+  case commandSuggestions (promptSuggestEntries (envMcp (asEnv st))) (currentInputText st) of
     [] -> emptyWidget
     xs ->
       B.borderWithLabel (txt " commands ") $
