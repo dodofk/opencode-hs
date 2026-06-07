@@ -115,6 +115,7 @@ library:
     - OpenCode.TUI.Render
     - OpenCode.TUI.App
     - OpenCode.TUI.Command
+    - OpenCode.MCP.Protocol
 
 executables:
   opencode-hs:
@@ -174,3 +175,4 @@ tests:
       - OpenCode.TUI.OverlaySpec
       - OpenCode.TUI.RenderSpec
       - OpenCode.TypesSpec
+      - OpenCode.MCP.ProtocolSpec

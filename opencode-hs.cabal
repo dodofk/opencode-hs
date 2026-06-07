@@ -54,6 +54,7 @@ library
       OpenCode.TUI.Render
       OpenCode.TUI.App
       OpenCode.TUI.Command
+      OpenCode.MCP.Protocol
   other-modules:
       Paths_opencode_hs
   hs-source-dirs:
@@ -187,6 +188,7 @@ test-suite opencode-hs-test
       OpenCode.TUI.OverlaySpec
       OpenCode.TUI.RenderSpec
       OpenCode.TypesSpec
+      OpenCode.MCP.ProtocolSpec
   hs-source-dirs:
       test
   default-extensions:
