@@ -117,6 +117,7 @@ library:
     - OpenCode.TUI.Command
     - OpenCode.MCP.Protocol
     - OpenCode.MCP.Client
+    - OpenCode.MCP.Adapters
 
 executables:
   opencode-hs:
@@ -190,4 +191,5 @@ tests:
       - OpenCode.TypesSpec
       - OpenCode.MCP.ProtocolSpec
       - OpenCode.MCP.ClientSpec
+      - OpenCode.MCP.AdaptersSpec
       - Paths_opencode_hs
