@@ -365,6 +365,7 @@ cfgWith oa mm = Config
   { providers    = ProviderConfig
       { openaiKey = oa, anthropicKey = Nothing, minimaxKey = mm }
   , defaultModel = ModelId OpenAI "gpt-4o"
+  , mcpServers   = []
   }
 
 cfgAnthropic :: Config
@@ -372,6 +373,7 @@ cfgAnthropic = Config
   { providers    = ProviderConfig
       { openaiKey = Nothing, anthropicKey = Just (ApiKey "k"), minimaxKey = Nothing }
   , defaultModel = ModelId Anthropic "claude-opus-4-5"
+  , mcpServers   = []
   }
 
 withFreshEnv :: (AppEnv -> IO a) -> IO a
@@ -385,6 +387,7 @@ withFreshEnv action = bracket (openDb ":memory:") close $ \conn -> do
             , minimaxKey   = Nothing
             }
         , defaultModel = ModelId OpenAI "gpt-4o"
+        , mcpServers   = []
         }
       env = AppEnv
         { envConfig    = cfg

@@ -41,6 +41,7 @@ withTestEnv action = bracket (openDb ":memory:") close $ \conn -> do
             , minimaxKey   = Nothing
             }
         , defaultModel = ModelId OpenAI "gpt-4o"
+        , mcpServers   = []
         }
       session = Session
         { sessionId      = sid
@@ -83,6 +84,7 @@ mkDummyEnv mkey = do
         { providers    = ProviderConfig
             { openaiKey = mkey, anthropicKey = Nothing, minimaxKey = Nothing }
         , defaultModel = ModelId OpenAI "gpt-4o"
+        , mcpServers   = []
         }
   pure AppEnv
     { envConfig    = cfg

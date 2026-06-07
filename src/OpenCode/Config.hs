@@ -8,6 +8,7 @@ module OpenCode.Config
   ( -- * Public types
     Config (..)
   , ProviderConfig (..)
+  , McpServerConfig (..)
   , ConfigError (..)
     -- * Loading
   , loadConfig
@@ -23,12 +24,15 @@ module OpenCode.Config
   , ProviderConfigFile (..)
   , ApiKeyFile (..)
   , ModelIdFile (..)
+  , McpServerConfigFile (..)
   , emptyConfigFile
   ) where
 
 import Control.Applicative ((<|>))
 import Data.Aeson (FromJSON (..), (.:), (.:?), withObject)
-import Data.Maybe (isJust, isNothing)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Yaml qualified as Yaml
@@ -44,6 +48,7 @@ import OpenCode.Types (ApiKey (..), ModelId (..), ProviderId (..))
 data Config = Config
   { providers    :: ProviderConfig
   , defaultModel :: ModelId
+  , mcpServers   :: [(Text, McpServerConfig)]   -- ^ name -> config, in file order
   }
   deriving stock (Show, Eq)
 
@@ -51,6 +56,16 @@ data ProviderConfig = ProviderConfig
   { openaiKey    :: Maybe ApiKey
   , anthropicKey :: Maybe ApiKey
   , minimaxKey   :: Maybe ApiKey
+  }
+  deriving stock (Show, Eq)
+
+-- | One configured MCP server. 'mcsEnv' is merged over the inherited process
+-- environment at spawn time; 'mcsEnabled' defaults to True.
+data McpServerConfig = McpServerConfig
+  { mcsCommand :: FilePath
+  , mcsArgs    :: [Text]
+  , mcsEnv     :: [(Text, Text)]
+  , mcsEnabled :: Bool
   }
   deriving stock (Show, Eq)
 
@@ -67,16 +82,18 @@ data ConfigError
 data ConfigFile = ConfigFile
   { cfProviders    :: Maybe ProviderConfigFile
   , cfDefaultModel :: Maybe ModelIdFile
+  , cfMcpServers   :: Maybe (Map Text McpServerConfigFile)
   }
   deriving stock (Show, Eq)
 
 emptyConfigFile :: ConfigFile
-emptyConfigFile = ConfigFile Nothing Nothing
+emptyConfigFile = ConfigFile Nothing Nothing Nothing
 
 instance FromJSON ConfigFile where
   parseJSON = withObject "ConfigFile" $ \o -> ConfigFile
     <$> o .:? "providers"
     <*> o .:? "defaultModel"
+    <*> o .:? "mcpServers"
 
 data ProviderConfigFile = ProviderConfigFile
   { cfOpenai    :: Maybe ApiKeyFile
@@ -107,6 +124,21 @@ instance FromJSON ModelIdFile where
   parseJSON = withObject "ModelIdFile" $ \o -> ModelIdFile
     <$> o .: "provider"
     <*> o .: "model"
+
+data McpServerConfigFile = McpServerConfigFile
+  { mscfCommand :: FilePath
+  , mscfArgs    :: Maybe [Text]
+  , mscfEnv     :: Maybe (Map Text Text)
+  , mscfEnabled :: Maybe Bool
+  }
+  deriving stock (Show, Eq)
+
+instance FromJSON McpServerConfigFile where
+  parseJSON = withObject "McpServerConfigFile" $ \o -> McpServerConfigFile
+    <$> o .:  "command"
+    <*> o .:? "args"
+    <*> o .:? "env"
+    <*> o .:? "enabled"
 
 -- ---------------------------------------------------------------------------
 -- Environment variable overrides
@@ -161,6 +193,7 @@ buildConfig cf env =
 
     providerCfg = ProviderConfig { openaiKey, anthropicKey, minimaxKey }
     defModel    = maybe (pickDefaultModel providerCfg) toModelId (cfDefaultModel cf)
+    mcpList     = maybe [] (map toMcpServer . Map.toList) (cfMcpServers cf)
   in
     if isNothing openaiKey && isNothing anthropicKey && isNothing minimaxKey
       then Left $ ConfigMissingKey
@@ -169,6 +202,7 @@ buildConfig cf env =
       else Right Config
         { providers    = providerCfg
         , defaultModel = defModel
+        , mcpServers   = mcpList
         }
 
 -- | When no @defaultModel@ is configured, pick one from whichever provider key
@@ -182,6 +216,17 @@ pickDefaultModel pc
 
 toModelId :: ModelIdFile -> ModelId
 toModelId mf = ModelId { provider = mfProvider mf, model = mfModel mf }
+
+toMcpServer :: (Text, McpServerConfigFile) -> (Text, McpServerConfig)
+toMcpServer (name, f) =
+  ( name
+  , McpServerConfig
+      { mcsCommand = mscfCommand f
+      , mcsArgs    = fromMaybe [] (mscfArgs f)
+      , mcsEnv     = maybe [] Map.toList (mscfEnv f)
+      , mcsEnabled = fromMaybe True (mscfEnabled f)
+      }
+  )
 
 -- ---------------------------------------------------------------------------
 -- IO loading

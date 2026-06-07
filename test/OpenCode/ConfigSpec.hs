@@ -2,6 +2,9 @@ module OpenCode.ConfigSpec (spec) where
 
 import Data.Maybe (isNothing)
 import Data.Text (Text)
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
+import qualified Data.Yaml as Yaml
 import System.FilePath ((</>))
 import System.IO.Temp (withSystemTempDirectory)
 import Test.Hspec
@@ -98,6 +101,61 @@ spec = do
         Left  err -> expectationFailure (show err)
         Right c   -> provider (defaultModel c) `shouldBe` OpenAI
 
+  describe "mcpServers parsing" $ do
+    it "parses a full server entry from YAML" $ do
+      let yaml = Text.unlines
+            [ "providers:"
+            , "  openai:"
+            , "    apiKey: sk-x"
+            , "mcpServers:"
+            , "  filesystem:"
+            , "    command: npx"
+            , "    args: [\"-y\", \"server-filesystem\", \"/tmp\"]"
+            , "    env:"
+            , "      FOO: bar"
+            , "    enabled: true"
+            ]
+      cf <- either (fail . show) pure (Yaml.decodeEither' (Text.encodeUtf8 yaml))
+      case buildConfig cf emptyEnv of
+        Left  err -> expectationFailure (show err)
+        Right cfg ->
+          mcpServers cfg `shouldBe`
+            [ ("filesystem", McpServerConfig
+                { mcsCommand = "npx"
+                , mcsArgs    = ["-y", "server-filesystem", "/tmp"]
+                , mcsEnv     = [("FOO", "bar")]
+                , mcsEnabled = True
+                }) ]
+
+    it "defaults env to empty and enabled to True" $ do
+      let yaml = Text.unlines
+            [ "providers: { openai: { apiKey: sk-x } }"
+            , "mcpServers:"
+            , "  srv:"
+            , "    command: foo"
+            ]
+      cf <- either (fail . show) pure (Yaml.decodeEither' (Text.encodeUtf8 yaml))
+      case buildConfig cf emptyEnv of
+        Left  err -> expectationFailure (show err)
+        Right cfg ->
+          mcpServers cfg `shouldBe`
+            [ ("srv", McpServerConfig "foo" [] [] True) ]
+
+    it "is empty when the section is absent" $
+      case buildConfig emptyConfigFile envWithKey of
+        Left  err -> expectationFailure (show err)
+        Right cfg -> mcpServers cfg `shouldBe` []
+
+    it "preserves enabled:false" $ do
+      let yaml = Text.unlines
+            [ "providers: { openai: { apiKey: sk-x } }"
+            , "mcpServers: { srv: { command: foo, enabled: false } }"
+            ]
+      cf <- either (fail . show) pure (Yaml.decodeEither' (Text.encodeUtf8 yaml))
+      case buildConfig cf emptyEnv of
+        Left  err -> expectationFailure (show err)
+        Right cfg -> map (mcsEnabled . snd) (mcpServers cfg) `shouldBe` [False]
+
   describe "loadConfigFile" $ do
 
     it "returns Right for a missing file (fresh install)" $
@@ -158,6 +216,12 @@ spec = do
 
 noEnv :: EnvOverride
 noEnv = EnvOverride Nothing Nothing Nothing
+
+emptyEnv :: EnvOverride
+emptyEnv = EnvOverride Nothing Nothing Nothing
+
+envWithKey :: EnvOverride
+envWithKey = EnvOverride (Just (ApiKey "sk-x")) Nothing Nothing
 
 openaiEnv :: Text -> EnvOverride
 openaiEnv k = EnvOverride (Just (ApiKey k)) Nothing Nothing
