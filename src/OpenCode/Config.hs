@@ -48,7 +48,7 @@ import OpenCode.Types (ApiKey (..), ModelId (..), ProviderId (..))
 data Config = Config
   { providers    :: ProviderConfig
   , defaultModel :: ModelId
-  , mcpServers   :: [(Text, McpServerConfig)]   -- ^ name -> config, in file order
+  , mcpServers   :: [(Text, McpServerConfig)]   -- ^ name -> config, in ascending name order
   }
   deriving stock (Show, Eq)
 
@@ -217,6 +217,7 @@ pickDefaultModel pc
 toModelId :: ModelIdFile -> ModelId
 toModelId mf = ModelId { provider = mfProvider mf, model = mfModel mf }
 
+-- | Map a parsed file entry to a 'McpServerConfig', applying defaults.
 toMcpServer :: (Text, McpServerConfigFile) -> (Text, McpServerConfig)
 toMcpServer (name, f) =
   ( name

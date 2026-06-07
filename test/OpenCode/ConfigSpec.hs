@@ -116,7 +116,7 @@ spec = do
             , "    enabled: true"
             ]
       cf <- either (fail . show) pure (Yaml.decodeEither' (Text.encodeUtf8 yaml))
-      case buildConfig cf emptyEnv of
+      case buildConfig cf noEnv of
         Left  err -> expectationFailure (show err)
         Right cfg ->
           mcpServers cfg `shouldBe`
@@ -135,14 +135,14 @@ spec = do
             , "    command: foo"
             ]
       cf <- either (fail . show) pure (Yaml.decodeEither' (Text.encodeUtf8 yaml))
-      case buildConfig cf emptyEnv of
+      case buildConfig cf noEnv of
         Left  err -> expectationFailure (show err)
         Right cfg ->
           mcpServers cfg `shouldBe`
-            [ ("srv", McpServerConfig "foo" [] [] True) ]
+            [ ("srv", McpServerConfig { mcsCommand = "foo", mcsArgs = [], mcsEnv = [], mcsEnabled = True }) ]
 
     it "is empty when the section is absent" $
-      case buildConfig emptyConfigFile envWithKey of
+      case buildConfig emptyConfigFile (openaiEnv "sk-x") of
         Left  err -> expectationFailure (show err)
         Right cfg -> mcpServers cfg `shouldBe` []
 
@@ -152,7 +152,7 @@ spec = do
             , "mcpServers: { srv: { command: foo, enabled: false } }"
             ]
       cf <- either (fail . show) pure (Yaml.decodeEither' (Text.encodeUtf8 yaml))
-      case buildConfig cf emptyEnv of
+      case buildConfig cf noEnv of
         Left  err -> expectationFailure (show err)
         Right cfg -> map (mcsEnabled . snd) (mcpServers cfg) `shouldBe` [False]
 
@@ -216,12 +216,6 @@ spec = do
 
 noEnv :: EnvOverride
 noEnv = EnvOverride Nothing Nothing Nothing
-
-emptyEnv :: EnvOverride
-emptyEnv = EnvOverride Nothing Nothing Nothing
-
-envWithKey :: EnvOverride
-envWithKey = EnvOverride (Just (ApiKey "sk-x")) Nothing Nothing
 
 openaiEnv :: Text -> EnvOverride
 openaiEnv k = EnvOverride (Just (ApiKey k)) Nothing Nothing
