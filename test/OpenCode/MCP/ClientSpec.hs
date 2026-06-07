@@ -12,8 +12,10 @@ import Test.Hspec
 
 import Paths_opencode_hs (getBinDir)
 import OpenCode.Config (McpServerConfig (..))
+import OpenCode.MCP.Adapters (clientSomeTools, resourceTools)
 import OpenCode.MCP.Client
 import OpenCode.MCP.Protocol
+import OpenCode.Tool.Types (SomeTool (..))
 
 -- | Locate the built mock server: honor OPENCODE_MCP_MOCK, else look in the
 -- package's bin dir (stack builds executables before running the test suite).
@@ -49,6 +51,13 @@ spec = describe "OpenCode.MCP.Client (against the mock server)" $ do
     map mtName (mcTools c)    `shouldBe` ["echo"]
     map mrUri  (mcResources c) `shouldBe` ["mock://a"]
     map mpName (mcPrompts c)  `shouldBe` ["greet"]
+
+  it "exposes namespaced tools incl. synthesized resource tools via the adapter" $ withMock $ \c -> do
+    -- the mock advertises one tool (echo) + resources, so the adapter yields
+    -- the namespaced real tool plus the two synthesized resource tools.
+    map toolName (clientSomeTools c)
+      `shouldBe` ["mock_echo", "mock_list_resources", "mock_read_resource"]
+    length (resourceTools c) `shouldBe` 2
 
   it "round-trips a tools/call (echo)" $ withMock $ \c -> do
     r <- callTool c "echo" (Aeson.object ["msg" Aeson..= ("hi" :: Text)])
