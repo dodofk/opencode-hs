@@ -55,6 +55,7 @@ library
       OpenCode.TUI.App
       OpenCode.TUI.Command
       OpenCode.MCP.Protocol
+      OpenCode.MCP.Client
   other-modules:
       Paths_opencode_hs
   hs-source-dirs:
