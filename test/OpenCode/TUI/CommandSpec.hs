@@ -20,6 +20,8 @@ spec = do
       parseCommand "/help"     `shouldBe` Just CmdHelp
       parseCommand "/quit"     `shouldBe` Just CmdQuit
 
+    it "parses /prompts" $ parseCommand "/prompts" `shouldBe` Just CmdPrompts
+
     it "is case-insensitive" $
       parseCommand "/MODEL" `shouldBe` Just CmdModel
 
@@ -41,7 +43,7 @@ spec = do
   describe "commandSuggestions" $ do
     it "lists every command for a bare slash, in catalog order" $
       map fst (commandSuggestions [] "/") `shouldBe`
-        ["/new", "/sessions", "/model", "/help", "/quit"]
+        ["/new", "/sessions", "/model", "/prompts", "/help", "/quit"]
 
     it "filters by case-insensitive name prefix" $
       map fst (commandSuggestions [] "/se") `shouldBe` ["/sessions"]
@@ -73,7 +75,7 @@ spec = do
 
     it "includes prompts after built-ins for a bare slash" $
       map fst (commandSuggestions prompts "/")
-        `shouldBe` ["/new", "/sessions", "/model", "/help", "/quit", "/srv_greet", "/srv_bye"]
+        `shouldBe` ["/new", "/sessions", "/model", "/prompts", "/help", "/quit", "/srv_greet", "/srv_bye"]
 
     it "matches a prompt by prefix" $
       commandSuggestions prompts "/srv_g" `shouldBe` [("/srv_greet", "greet someone")]

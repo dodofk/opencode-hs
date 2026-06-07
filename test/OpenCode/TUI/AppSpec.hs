@@ -211,12 +211,12 @@ spec = do
 
   describe "applySuggestMove (autocomplete highlight)" $ do
     it "moves the highlight down within the match list" $ do
-      st <- stateWithInput "/"          -- 5 matches
+      st <- stateWithInput "/"          -- 6 matches
       asSuggestSel (applySuggestMove 1 st) `shouldBe` 1
 
     it "clamps the highlight at the bottom" $ do
       st <- stateWithInput "/"
-      asSuggestSel (applySuggestMove 99 st) `shouldBe` 4
+      asSuggestSel (applySuggestMove 99 st) `shouldBe` 5
 
     it "clamps the highlight at the top" $ do
       st <- stateWithInput "/"

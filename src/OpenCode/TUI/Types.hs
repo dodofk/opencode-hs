@@ -18,6 +18,7 @@ import Data.Sequence (Seq)
 import Data.Text (Text)
 
 import OpenCode.App.Types (AppEnv)
+import OpenCode.MCP.Adapters (PromptEntry)
 import OpenCode.Session.Events (RunState (..), SessionEvent (..))
 import OpenCode.Types (Message, ModelId, Session, SessionId)
 
@@ -52,6 +53,7 @@ data OverlayKind
   = OverlaySessions SessionId [Session]  -- ^ current id (for the * marker) + rows
   | OverlayModels   ModelId   [ModelId]  -- ^ current model (* marker + preselect) + rows
   | OverlayHelp     [Text]               -- ^ non-actionable lines
+  | OverlayPrompts  [PromptEntry]        -- ^ discovered MCP prompts (pick to run)
   deriving stock (Show, Eq)
 
 -- ---------------------------------------------------------------------------

@@ -44,6 +44,7 @@ import Control.Exception (SomeException, displayException, try)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State.Class (get, modify, put)
+import Data.List (find)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Sequence ((|>))
 import qualified Data.Sequence as Seq
@@ -72,10 +73,15 @@ import OpenCode.TUI.Render
   , userAttr
   )
 import OpenCode.Config (Config (..))
-import OpenCode.MCP.Adapters (promptSuggestEntries)
+import OpenCode.MCP.Adapters
+  ( PromptEntry (..), promptEntries, promptSuggestEntries
+  , parsePromptInvocation, missingArgs )
+import OpenCode.MCP.Client (McpClient (..), McpError, getPrompt, renderMcpError)
+import OpenCode.MCP.Protocol (GetPromptResult (..), PromptMessage (..))
 import OpenCode.TUI.Command (Command (..), parseCommand, commandSuggestions, clampSel)
 import OpenCode.TUI.Overlay
-  ( helpOverlay, modelsOverlay, sessionsOverlay, overlayMove, overlaySelected )
+  ( helpOverlay, modelsOverlay, promptsOverlay, sessionsOverlay
+  , overlayMove, overlaySelected )
 import OpenCode.TUI.Types
   ( AppState (..), ResourceName (..), UIMode (..), Overlay (..), OverlayKind (..) )
 import OpenCode.Types
@@ -215,34 +221,41 @@ editAndReset ev = do
     _            -> pure ()
   modify (\s -> s { asSuggestSel = 0 })
 
--- | Enter while the panel is open: run the highlighted command via the existing
--- dispatcher (so run-in-flight gating and notices are inherited). Falls back to
--- the normal submit path if, defensively, there is no highlight.
+-- | Enter while the panel is open: set the input to the highlighted name and
+-- reuse 'onEnter', so a highlighted MCP prompt flows through the prompt path
+-- (via 'matchPrompt') and a built-in through 'parseCommand'. Falls back to the
+-- normal submit path if, defensively, there is no highlight.
 runHighlighted :: EventM ResourceName AppState ()
 runHighlighted = do
   st <- get
   case highlightedCommand st of
     Nothing   -> onEnter
     Just name -> do
-      put st { asInput = emptyEditor, asNotice = Nothing, asSuggestSel = 0 }
-      maybe (pure ()) dispatchCommand (parseCommand name)
+      put st { asInput = E.editorText InputEditor (Just 1) name, asSuggestSel = 0 }
+      onEnter
 
--- | The Enter action in normal mode: a slash command dispatches; anything else
--- is submitted to the LLM exactly as before.
+-- | The Enter action in normal mode: a known MCP prompt invocation is fetched
+-- and run; a slash command dispatches; anything else is submitted to the LLM
+-- exactly as before. The prompt match is tried first so @\/srv_greet k=v@ routes
+-- to 'invokePrompt' rather than being mis-parsed as an unknown command. NB:
+-- 'invokePrompt' clears the input itself — do not clear it here, or its
+-- 'shouldSubmit'-guarded submit path would drop the message.
 onEnter :: EventM ResourceName AppState ()
 onEnter = do
   st <- get
   let body = currentInput st
-  case parseCommand body of
-    Nothing ->
-      when (asRunState st == Idle && shouldSubmit body) $ do
-        msg <- liftIO (mkUserMessage body)
-        put ((applyEnter msg st) { asRunState = RunningLLM, asNotice = Nothing })
-        liftIO (startRun (asEnv st) (asSessionId st) body)
-        M.vScrollToEnd chatScroll
-    Just cmd -> do
-      put st { asInput = emptyEditor, asNotice = Nothing }
-      dispatchCommand cmd
+  case matchPrompt st body of
+    Just (entry, args) -> invokePrompt entry args st
+    Nothing -> case parseCommand body of
+      Nothing ->
+        when (asRunState st == Idle && shouldSubmit body) $ do
+          msg <- liftIO (mkUserMessage body)
+          put ((applyEnter msg st) { asRunState = RunningLLM, asNotice = Nothing })
+          liftIO (startRun (asEnv st) (asSessionId st) body)
+          M.vScrollToEnd chatScroll
+      Just cmd -> do
+        put st { asInput = emptyEditor, asNotice = Nothing }
+        dispatchCommand cmd
 
 -- | Run a slash command. Context-changing commands are blocked while a run is
 -- in flight (with a notice); /help and /quit always work.
@@ -256,6 +269,7 @@ dispatchCommand cmd = do
     CmdNew       -> whenIdle st (openNew st)
     CmdSessions  -> whenIdle st (openSessions st)
     CmdModel     -> whenIdle st (openModel st)
+    CmdPrompts   -> whenIdle st (openPrompts st)
   where
     whenIdle st act
       | asRunState st == Idle = act
@@ -293,6 +307,9 @@ commitOverlay ov = do
       OverlayModels _ ms   -> maybe (put st { asMode = ModeNormal })
                                     (`setModel` st)
                                     (safeIndex ms i)
+      OverlayPrompts es    -> maybe (put st { asMode = ModeNormal })
+                                    (\e -> selectPrompt e st { asMode = ModeNormal, asNotice = Nothing })
+                                    (safeIndex es i)
 
 -- | /new: create a session with the config default model and switch to it.
 openNew :: AppState -> EventM ResourceName AppState ()
@@ -327,6 +344,64 @@ openModel st = do
     Right (Just s) -> case availableModels (providers (envConfig env)) of
       [] -> put st { asNotice = Just "no models available" }
       ms -> put st { asMode = ModeOverlay (modelsOverlay (sessionModel s) ms) }
+
+-- | /prompts: open a picker of all discovered MCP prompts.
+openPrompts :: AppState -> EventM ResourceName AppState ()
+openPrompts st = case allPromptEntries st of
+  [] -> put st { asNotice = Just "no MCP prompts available" }
+  es -> put st { asMode = ModeOverlay (promptsOverlay es) }
+
+-- | Commit an overlay prompt selection. No required args -> run now; otherwise
+-- close the overlay and prefill the input with @\/<fullName> @ for the user to
+-- add key=value arguments.
+selectPrompt :: PromptEntry -> AppState -> EventM ResourceName AppState ()
+selectPrompt e st
+  | null (peRequiredArgs e) = invokePrompt e [] st { asMode = ModeNormal }
+  | otherwise = put st
+      { asMode  = ModeNormal
+      , asInput = E.editorText InputEditor (Just 1) ("/" <> peFullName e <> " ")
+      }
+
+-- | If the input is a known prompt invocation, resolve the entry + parsed args.
+matchPrompt :: AppState -> Text -> Maybe (PromptEntry, [(Text, Text)])
+matchPrompt st body = do
+  (nm, args) <- parsePromptInvocation body
+  entry      <- find ((== nm) . peFullName) (allPromptEntries st)
+  pure (entry, args)
+
+-- | Every prompt discovered across all connected MCP servers.
+allPromptEntries :: AppState -> [PromptEntry]
+allPromptEntries st = concatMap promptEntries (envMcp (asEnv st))
+
+-- | Run an MCP prompt: validate required args, fetch via 'getPrompt', then
+-- submit the combined message text as a user turn. Uses 'appendUserMessage'
+-- (which appends unconditionally and clears the input) rather than 'applyEnter'
+-- — the latter's 'shouldSubmit' guard would reject the cleared input.
+-- Persistence and the run itself are reused from the normal typed-message path
+-- via 'startRun'.
+invokePrompt :: PromptEntry -> [(Text, Text)] -> AppState -> EventM ResourceName AppState ()
+invokePrompt entry args st = case missingArgs entry args of
+  (m : _) -> put st { asInput = emptyEditor, asNotice = Just ("missing required arg: " <> m) }
+  []      -> case find ((== peServer entry) . mcName) (envMcp (asEnv st)) of
+    Nothing -> put st { asInput = emptyEditor, asNotice = Just "prompt server unavailable" }
+    Just c  -> do
+      result <- liftIO (try (getPrompt c (peName entry) args)
+                          :: IO (Either SomeException (Either McpError GetPromptResult)))
+      case result of
+        Left ex        -> put st { asInput = emptyEditor
+                                 , asNotice = Just ("prompt error: " <> T.pack (displayException ex)) }
+        Right (Left e) -> put st { asInput = emptyEditor
+                                 , asNotice = Just ("prompt error: " <> renderMcpError e) }
+        Right (Right gp) ->
+          let promptText = T.intercalate "\n\n" (map pmText (gprMessages gp))
+          in if T.null (T.strip promptText)
+               then put st { asInput = emptyEditor, asNotice = Just "prompt returned no content" }
+               else do
+                 msg <- liftIO (mkUserMessage promptText)
+                 put ((appendUserMessage msg st)
+                        { asRunState = RunningLLM, asNotice = Nothing, asSuggestSel = 0 })
+                 liftIO (startRun (asEnv st) (asSessionId st) promptText)
+                 M.vScrollToEnd chatScroll
 
 -- | Load a session's history and switch the UI to it.
 switchTo :: Session -> AppState -> EventM ResourceName AppState ()

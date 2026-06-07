@@ -11,6 +11,7 @@ module OpenCode.TUI.Overlay
   , sessionsOverlay
   , modelsOverlay
   , helpOverlay
+  , promptsOverlay
   ) where
 
 import Data.List (elemIndex)
@@ -19,6 +20,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Time.Format (defaultTimeLocale, formatTime)
 
+import OpenCode.MCP.Adapters (PromptEntry (..))
 import OpenCode.Model.Catalog (modelLabel)
 import OpenCode.TUI.Command (commandCatalog)
 import OpenCode.TUI.Types (Overlay (..), OverlayKind (..))
@@ -30,6 +32,7 @@ overlayCount = \case
   OverlaySessions _ ss -> length ss
   OverlayModels   _ ms -> length ms
   OverlayHelp     ls   -> length ls
+  OverlayPrompts  es   -> length es
 
 -- | Move the selection by a delta, clamped to @[0, count-1]@ (no-op if empty).
 overlayMove :: Int -> Overlay -> Overlay
@@ -55,6 +58,7 @@ overlayLabels = \case
   OverlaySessions cur ss -> map (sessionRow cur) ss
   OverlayModels   cur ms -> map (modelRow cur) ms
   OverlayHelp     ls     -> ls
+  OverlayPrompts  es     -> map promptRow es
   where
     sessionRow cur s = marker (sessionId s == cur) <> titleOf s <> "  " <> createdLabel s
     createdLabel s   = T.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M" (sessionCreated s))
@@ -62,6 +66,9 @@ overlayLabels = \case
       | T.null (sessionTitle s) = "(untitled)"
       | otherwise               = sessionTitle s
     modelRow cur m = marker (m == cur) <> modelLabel m
+    promptRow e
+      | T.null (peDescription e) = peFullName e
+      | otherwise                = peFullName e <> "  " <> peDescription e
     marker True  = "* "
     marker False = "  "
 
@@ -87,6 +94,14 @@ helpOverlay = Overlay
   { ovTitle = "help"
   , ovSel   = 0
   , ovKind  = OverlayHelp helpLines
+  }
+
+-- | A picker over the discovered MCP prompts.
+promptsOverlay :: [PromptEntry] -> Overlay
+promptsOverlay es = Overlay
+  { ovTitle = "prompts"
+  , ovSel   = 0
+  , ovKind  = OverlayPrompts es
   }
 
 helpLines :: [Text]

@@ -6,8 +6,9 @@ import Test.Hspec
 
 import OpenCode.TUI.Overlay
   ( helpOverlay, modelsOverlay, overlayCount, overlayLabels, overlayMove
-  , overlaySelected, sessionsOverlay )
+  , overlaySelected, promptsOverlay, sessionsOverlay )
 import OpenCode.TUI.Command (commandCatalog)
+import OpenCode.MCP.Adapters (PromptEntry (..))
 import OpenCode.TUI.Types (Overlay (..))
 import OpenCode.Types (ModelId (..), ProviderId (..), Session (..), SessionId (..))
 
@@ -44,6 +45,14 @@ spec = do
       overlayCount (ovKind ov) `shouldBe` 2
       overlayLabels (ovKind ov) `shouldBe`
         ["  one  2026-06-01 00:00", "* two  2026-06-01 00:00"]
+
+  describe "promptsOverlay" $ do
+    it "labels rows by full name and description" $ do
+      let es = [ PromptEntry "srv_greet" "srv" "greet" "say hi" []
+               , PromptEntry "srv_bye" "srv" "bye" "" [] ]
+          ov = promptsOverlay es
+      overlayLabels (ovKind ov) `shouldBe` ["srv_greet  say hi", "srv_bye"]
+      overlayCount (ovKind ov)  `shouldBe` 2
 
   describe "helpOverlay / catalog consistency" $
     it "lists every catalog command name in the help rows" $ do
