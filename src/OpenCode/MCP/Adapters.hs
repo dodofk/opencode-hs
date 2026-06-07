@@ -82,6 +82,8 @@ resourceTools c
       , toolName    = listName
       , toolDesc    = "list resources from the " <> server <> " MCP server"
       , toolSchema  = object ["type" .= ("object" :: Text), "properties" .= object []]
+      -- NB: serves the handshake snapshot in 'mcResources'; servers are not
+      -- reloaded mid-run (see the spec's lifecycle), so it cannot go stale here.
       , toolExecute = \_ -> pure (renderResourceList (mcResources c))
       , toolRender  = id
       }
@@ -150,8 +152,10 @@ promptSuggestEntries cs =
   [ ("/" <> peFullName e, peDescription e) | c <- cs, e <- promptEntries c ]
 
 -- | Parse a @\/name k=v k2=v2@ prompt-invocation line. The name carries no
--- leading slash in the result. Tokens without an @=@ are ignored. 'Nothing'
--- for input that is not a single @\/word …@.
+-- leading slash in the result. Tokens without an @=@ are ignored; the split is
+-- on the FIRST @=@ (so @k=v=w@ yields @("k","v=w")@), and an empty value
+-- (@foo=@) is passed through as @("foo","")@. 'Nothing' for input that is not a
+-- single @\/word …@.
 parsePromptInvocation :: Text -> Maybe (Text, [(Text, Text)])
 parsePromptInvocation raw = case T.words (T.strip raw) of
   (w : rest)

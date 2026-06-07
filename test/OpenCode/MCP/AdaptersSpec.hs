@@ -25,6 +25,12 @@ spec = do
       parsePromptInvocation "/greet hello name=ann"
         `shouldBe` Just ("greet", [("name", "ann")])
 
+    it "splits on the first '=' only" $
+      parsePromptInvocation "/greet k=v=w" `shouldBe` Just ("greet", [("k", "v=w")])
+
+    it "passes an empty value through" $
+      parsePromptInvocation "/greet foo=" `shouldBe` Just ("greet", [("foo", "")])
+
     it "returns Nothing for non-slash input" $
       parsePromptInvocation "hello world" `shouldBe` Nothing
 
