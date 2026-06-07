@@ -240,6 +240,8 @@ test-suite opencode-hs-test
       OpenCode.TUI.RenderSpec
       OpenCode.TypesSpec
       OpenCode.MCP.ProtocolSpec
+      OpenCode.MCP.ClientSpec
+      Paths_opencode_hs
   hs-source-dirs:
       test
   default-extensions:
