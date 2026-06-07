@@ -45,6 +45,9 @@ spec = do
     it "rejects non-JSON" $
       parseResponse "not json" `shouldSatisfy` isLeft
 
+    it "rejects a non-object JSON value (array)" $
+      parseResponse "[1,2,3]" `shouldSatisfy` isLeft
+
   describe "decoders tolerate unknown fields and parse lists" $ do
     it "initialize capabilities" $ do
       let v = obj "{\"protocolVersion\":\"x\",\"capabilities\":{\"tools\":{},\"prompts\":{}},\"extra\":1}"
@@ -58,6 +61,10 @@ spec = do
     it "tools/list" $
       decodeToolsList (obj "{\"tools\":[{\"name\":\"echo\",\"description\":\"d\",\"inputSchema\":{}}]}")
         `shouldBe` Right [McpToolDef "echo" "d" (Aeson.object [])]
+
+    it "resources/list" $
+      decodeResourcesList (obj "{\"resources\":[{\"uri\":\"file:///a\",\"name\":\"a\"}]}")
+        `shouldBe` Right [McpResource "file:///a" "a" Nothing Nothing]
 
     it "tools/call with text and non-text content + isError" $ do
       let v = obj "{\"content\":[{\"type\":\"text\",\"text\":\"hi\"},{\"type\":\"image\"}],\"isError\":true}"

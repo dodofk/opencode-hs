@@ -97,6 +97,7 @@ instance FromJSON JsonRpcResponse where
 encodeRequest :: JsonRpcRequest -> BL.ByteString
 encodeRequest = Aeson.encode
 
+-- | One newline-delimited notification line (no trailing newline; the caller adds it).
 encodeNotification :: JsonRpcNotification -> BL.ByteString
 encodeNotification = Aeson.encode
 
