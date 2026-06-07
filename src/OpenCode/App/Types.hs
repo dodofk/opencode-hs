@@ -14,6 +14,7 @@ import Database.SQLite.Simple (Connection)
 
 import OpenCode.App.Error (AppError)
 import OpenCode.Config (Config)
+import OpenCode.MCP.Client (McpClient)
 import OpenCode.Session.Events (SessionEvent)
 import OpenCode.Tool.Types (ToolRegistry)
 
@@ -25,4 +26,5 @@ data AppEnv = AppEnv
   , envRegistry  :: ToolRegistry
   , envEventChan :: BChan SessionEvent
   , envAbort     :: TVar Bool
+  , envMcp       :: [McpClient]
   }

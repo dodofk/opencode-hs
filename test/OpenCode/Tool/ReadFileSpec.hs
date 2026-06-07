@@ -70,6 +70,7 @@ runRead input = do
         , envRegistry  = undefined
         , envEventChan = undefined
         , envAbort     = undefined
+        , envMcp       = []
         }
       args = Aeson.toJSON input
   runExceptT (runReaderT (executeTool reg "read_file" args) env)

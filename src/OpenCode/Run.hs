@@ -17,7 +17,7 @@ import qualified Conduit
 import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.Async (async, poll, waitCatch)
 import qualified Control.Concurrent.STM as STM
-import Control.Exception (Handler (Handler), SomeException, catches, try)
+import Control.Exception (Handler (Handler), SomeException, bracket, catches, try)
 import Database.SQLite.Simple (SQLError (..))
 import Control.Monad (void, when)
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -51,6 +51,9 @@ import OpenCode.Config
   ( Config (..), ProviderConfig (..), defaultAnthropicModel, defaultMiniMaxModel, loadConfig )
 import qualified OpenCode.DB as DB
 import OpenCode.LLM.Types (LLMRequest (..), Streamer)
+import OpenCode.MCP.Client (shutdown)
+import OpenCode.MCP.Startup
+  ( McpDiagnostic (..), mcpRegistryAdditions, startMcp )
 import OpenCode.Session
   ( createSession, loadSession, processUserMessage, streamerForProvider )
 import OpenCode.Session.Events (SessionEvent (..))
@@ -76,11 +79,19 @@ runApp registry = do
   cmd  <- case args of
     [] -> pure (Run defaultRunOpts)
     _  -> handleParseResult (execParserPure defaultPrefs commandParserInfo args)
-  withAppEnv registry $ \cfg env ->
+  withAppEnv registry (needsMcp cmd) $ \cfg env ->
     dispatch cfg env cmd `catches`
       [ Handler (\(e :: SQLError) -> dieT (renderDbError e))
       , Handler (\(DB.DBCorruption m) -> dieT ("database error: " <> m))
       ]
+
+-- | Only agent-running commands spawn MCP servers; pure admin commands
+-- ('list'\/'export'\/'config check'\/'version') start nothing. A bare
+-- invocation defaults to @Run defaultRunOpts@ in 'runApp', so the no-args
+-- TUI path is covered by the 'Run' case here.
+needsMcp :: Command -> Bool
+needsMcp (Run _) = True
+needsMcp _       = False
 
 dispatch :: Config -> AppEnv -> Command -> IO ()
 dispatch cfg env = \case
@@ -91,9 +102,12 @@ dispatch cfg env = \case
   Version     -> putStrLn (showVersion version)
 
 -- | Load config, open the DB, and build an 'AppEnv'; run the continuation.
--- A config error is reported to stderr and the process exits non-zero.
-withAppEnv :: Tool.ToolRegistry -> (Config -> AppEnv -> IO a) -> IO a
-withAppEnv registry k = do
+-- A config error is reported to stderr and the process exits non-zero. When
+-- @spawnMcp@ is set, every enabled MCP server is connected, its tools merged
+-- into the registry, and all clients shut down (via 'bracket') when the
+-- continuation returns — normally or via exception.
+withAppEnv :: Tool.ToolRegistry -> Bool -> (Config -> AppEnv -> IO a) -> IO a
+withAppEnv registry spawnMcp k = do
   cfgResult <- loadConfig
   case cfgResult of
     Left err  -> do
@@ -104,16 +118,26 @@ withAppEnv registry k = do
       conn     <- DB.openDb dbPath
       chan     <- BChan.newBChan 100
       abortVar <- STM.newTVarIO False
+      (clients, diags) <- if spawnMcp then startMcp cfg else pure ([], [])
+      reportMcpDiagnostics diags
       let env = AppEnv
             { envConfig    = cfg
             , envDb        = conn
-            , envRegistry  = registry
+            , envRegistry  = mcpRegistryAdditions clients registry
             , envEventChan = chan
             , envAbort     = abortVar
+            , envMcp       = clients
             }
       armed <- STM.newTVarIO False
       _ <- installHandler sigINT (Catch (onSigInt env armed)) Nothing
-      k cfg env
+      bracket (pure clients) (mapM_ shutdown) (\_ -> k cfg env)
+
+-- | MCP startup diagnostics go to stderr (visible in headless mode; harmless
+-- before the TUI takes the screen).
+reportMcpDiagnostics :: [McpDiagnostic] -> IO ()
+reportMcpDiagnostics =
+  mapM_ (\d -> TIO.hPutStrLn stderr
+    ("opencode-hs: MCP server '" <> mdServer d <> "' unavailable: " <> mdReason d))
 
 -- ---------------------------------------------------------------------------
 -- run

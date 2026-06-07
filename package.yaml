@@ -118,6 +118,7 @@ library:
     - OpenCode.MCP.Protocol
     - OpenCode.MCP.Client
     - OpenCode.MCP.Adapters
+    - OpenCode.MCP.Startup
 
 executables:
   opencode-hs:
@@ -192,4 +193,5 @@ tests:
       - OpenCode.MCP.ProtocolSpec
       - OpenCode.MCP.ClientSpec
       - OpenCode.MCP.AdaptersSpec
+      - OpenCode.MCP.StartupSpec
       - Paths_opencode_hs

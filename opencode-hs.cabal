@@ -57,6 +57,7 @@ library
       OpenCode.MCP.Protocol
       OpenCode.MCP.Client
       OpenCode.MCP.Adapters
+      OpenCode.MCP.Startup
   other-modules:
       Paths_opencode_hs
   hs-source-dirs:
@@ -243,6 +244,7 @@ test-suite opencode-hs-test
       OpenCode.MCP.ProtocolSpec
       OpenCode.MCP.ClientSpec
       OpenCode.MCP.AdaptersSpec
+      OpenCode.MCP.StartupSpec
       Paths_opencode_hs
   hs-source-dirs:
       test

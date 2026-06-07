@@ -29,6 +29,7 @@ spec = describe "defaultBuiltinRegistry" $ do
           , envRegistry  = defaultBuiltinRegistry
           , envEventChan = undefined
           , envAbort     = undefined
+          , envMcp       = []
           }
     in Map.size (unRegistry (envRegistry env)) `shouldBe` 6
 
@@ -41,6 +42,7 @@ spec = describe "defaultBuiltinRegistry" $ do
             , envRegistry  = defaultBuiltinRegistry
             , envEventChan = undefined
             , envAbort     = undefined
+            , envMcp       = []
             }
       written <- runExceptT $ runReaderT
         (executeTool defaultBuiltinRegistry "write_file"
