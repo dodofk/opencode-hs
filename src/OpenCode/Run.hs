@@ -118,19 +118,26 @@ withAppEnv registry spawnMcp k = do
       conn     <- DB.openDb dbPath
       chan     <- BChan.newBChan 100
       abortVar <- STM.newTVarIO False
-      (clients, diags) <- if spawnMcp then startMcp cfg else pure ([], [])
-      reportMcpDiagnostics diags
-      let env = AppEnv
-            { envConfig    = cfg
-            , envDb        = conn
-            , envRegistry  = mcpRegistryAdditions clients registry
-            , envEventChan = chan
-            , envAbort     = abortVar
-            , envMcp       = clients
-            }
-      armed <- STM.newTVarIO False
-      _ <- installHandler sigINT (Catch (onSigInt env armed)) Nothing
-      bracket (pure clients) (mapM_ shutdown) (\_ -> k cfg env)
+      -- Acquire MCP clients and release them in the same 'bracket', so the
+      -- spawned server processes are covered for shutdown the instant they exist.
+      let acquireMcp = if spawnMcp then startMcp cfg else pure ([], [])
+      bracket acquireMcp (mapM_ shutdown . fst) $ \(clients, diags) -> do
+        reportMcpDiagnostics diags
+        let env = AppEnv
+              { envConfig    = cfg
+              , envDb        = conn
+              , envRegistry  = mcpRegistryAdditions clients registry
+              , envEventChan = chan
+              , envAbort     = abortVar
+              , envMcp       = clients
+              }
+        armed <- STM.newTVarIO False
+        -- NOTE: the SIGINT hard-exit timer (see 'onSigInt') calls
+        -- 'exitImmediately', which bypasses this 'bracket'; on that path MCP
+        -- child processes are orphaned and reaped by the OS rather than via
+        -- 'shutdown'. The normal-return and exception paths shut down cleanly.
+        _ <- installHandler sigINT (Catch (onSigInt env armed)) Nothing
+        k cfg env
 
 -- | MCP startup diagnostics go to stderr (visible in headless mode; harmless
 -- before the TUI takes the screen).

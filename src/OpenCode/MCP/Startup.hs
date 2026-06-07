@@ -32,7 +32,10 @@ startMcp cfg = go (filter (mcsEnabled . snd) (mcpServers cfg)) [] []
         Left e  -> go rest cs (McpDiagnostic name (renderMcpError e) : ds)
 
 -- | Fold every client's tools (real + synthesized resource tools) into a
--- registry.
+-- registry. Precedence on a name clash: MCP tools are inserted over @reg0@, so
+-- an MCP tool overrides a same-named built-in, and the first client (then a
+-- real tool over its synthesized resource tools) wins. Names are namespaced
+-- @\<server>_\<tool>@, so clashes are unlikely in practice.
 mcpRegistryAdditions :: [McpClient] -> ToolRegistry -> ToolRegistry
 mcpRegistryAdditions cs reg0 =
   foldr registerTool reg0 (concatMap clientSomeTools cs)
