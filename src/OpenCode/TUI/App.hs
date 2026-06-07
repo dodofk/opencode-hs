@@ -245,7 +245,11 @@ onEnter = do
   st <- get
   let body = currentInput st
   case matchPrompt st body of
-    Just (entry, args) -> invokePrompt entry args st
+    Just (entry, args)
+      | asRunState st == Idle -> invokePrompt entry args st
+      -- gate the run-starting path exactly like the context slash commands, so a
+      -- prompt invoked mid-run can't start a second concurrent run.
+      | otherwise -> put st { asNotice = Just "press Esc to abort the run first" }
     Nothing -> case parseCommand body of
       Nothing ->
         when (asRunState st == Idle && shouldSubmit body) $ do

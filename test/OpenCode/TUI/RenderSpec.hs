@@ -184,13 +184,14 @@ spec = do
       let st = st0 { asInput = E.editorText InputEditor (Just 1) "/" }
       length (drawUI st) `shouldBe` 1
 
-    it "shows all five commands for a bare '/'" $ do
+    it "shows all six commands for a bare '/'" $ do
       st0 <- mkState []
       let st  = st0 { asInput = E.editorText InputEditor (Just 1) "/" }
           pic = M.renderWidget Nothing (drawUI st) (80, 24)
       show pic `shouldContain` "start a new session"   -- /new
       show pic `shouldContain` "switch session"        -- /sessions
       show pic `shouldContain` "change model"          -- /model
+      show pic `shouldContain` "run an MCP prompt"      -- /prompts
       show pic `shouldContain` "show help"             -- /help
       show pic `shouldContain` "exit"                  -- /quit
 
