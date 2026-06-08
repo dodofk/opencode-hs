@@ -396,5 +396,6 @@ withFreshEnv action = bracket (openDb ":memory:") close $ \conn -> do
         , envEventChan = chan
         , envAbort     = abortVar
         , envMcp       = []
+        , envSkills    = []
         }
   action env

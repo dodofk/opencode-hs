@@ -96,6 +96,7 @@ spec = describe "grepTool" $ do
             , envEventChan = undefined
             , envAbort     = undefined
             , envMcp       = []
+            , envSkills    = []
             }
       result <- runExceptT $ runReaderT (executeTool reg "grep" args) env
       case result of
@@ -230,6 +231,7 @@ runGrep input = do
         , envEventChan = undefined
         , envAbort     = undefined
         , envMcp       = []
+        , envSkills    = []
         }
       args = Aeson.toJSON input
   runExceptT (runReaderT (executeTool reg "grep" args) env)

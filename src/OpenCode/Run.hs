@@ -130,6 +130,7 @@ withAppEnv registry spawnMcp k = do
               , envEventChan = chan
               , envAbort     = abortVar
               , envMcp       = clients
+              , envSkills    = []
               }
         armed <- STM.newTVarIO False
         -- NOTE: the SIGINT hard-exit timer (see 'onSigInt') calls

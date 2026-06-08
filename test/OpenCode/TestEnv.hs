@@ -57,6 +57,7 @@ withTestEnv action = bracket (openDb ":memory:") close $ \conn -> do
         , envEventChan = chan
         , envAbort     = abortVar
         , envMcp       = []
+        , envSkills    = []
         }
   action env session
 
@@ -94,6 +95,7 @@ mkDummyEnv mkey = do
     , envEventChan = chan
     , envAbort     = abortVar
     , envMcp       = []
+    , envSkills    = []
     }
 
 -- | Dummy env with a (stub) OpenAI key present.

@@ -61,6 +61,7 @@ runWrite input = do
         , envEventChan = undefined
         , envAbort     = undefined
         , envMcp       = []
+        , envSkills    = []
         }
       args = Aeson.toJSON input
   runExceptT (runReaderT (executeTool reg "write_file" args) env)
