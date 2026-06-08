@@ -58,6 +58,10 @@ library
       OpenCode.MCP.Client
       OpenCode.MCP.Adapters
       OpenCode.MCP.Startup
+      OpenCode.Skill.Types
+      OpenCode.Skill.Parse
+      OpenCode.Skill.Registry
+      OpenCode.Skill.Discovery
   other-modules:
       Paths_opencode_hs
   hs-source-dirs:
@@ -245,6 +249,9 @@ test-suite opencode-hs-test
       OpenCode.MCP.ClientSpec
       OpenCode.MCP.AdaptersSpec
       OpenCode.MCP.StartupSpec
+      OpenCode.Skill.ParseSpec
+      OpenCode.Skill.RegistrySpec
+      OpenCode.Skill.DiscoverySpec
       Paths_opencode_hs
   hs-source-dirs:
       test
