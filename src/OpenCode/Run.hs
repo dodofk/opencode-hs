@@ -51,9 +51,14 @@ import OpenCode.Config
   ( Config (..), ProviderConfig (..), defaultAnthropicModel, defaultMiniMaxModel, loadConfig )
 import qualified OpenCode.DB as DB
 import OpenCode.LLM.Types (LLMRequest (..), Streamer)
+import OpenCode.MCP.Adapters (PromptEntry (..), promptEntries)
 import OpenCode.MCP.Client (shutdown)
 import OpenCode.MCP.Startup
   ( McpDiagnostic (..), mcpRegistryAdditions, startMcp )
+import OpenCode.Skill.Discovery (SkillDiagnostic (..), discoverSkills)
+import OpenCode.Skill.Registry (buildSkillRegistry)
+import OpenCode.Skill.Types (Skill (..), SkillSource (McpPromptSkill))
+import OpenCode.TUI.Command (commandCatalog)
 import OpenCode.Session
   ( createSession, loadSession, processUserMessage, streamerForProvider )
 import OpenCode.Session.Events (SessionEvent (..))
@@ -105,7 +110,8 @@ dispatch cfg env = \case
 -- A config error is reported to stderr and the process exits non-zero. When
 -- @spawnMcp@ is set, every enabled MCP server is connected, its tools merged
 -- into the registry, and all clients shut down (via 'bracket') when the
--- continuation returns — normally or via exception.
+-- continuation returns — normally or via exception. Under the same gate, local
+-- skills are discovered and merged with MCP prompts into 'envSkills'.
 withAppEnv :: Tool.ToolRegistry -> Bool -> (Config -> AppEnv -> IO a) -> IO a
 withAppEnv registry spawnMcp k = do
   cfgResult <- loadConfig
@@ -123,6 +129,17 @@ withAppEnv registry spawnMcp k = do
       let acquireMcp = if spawnMcp then startMcp cfg else pure ([], [])
       bracket acquireMcp (mapM_ shutdown . fst) $ \(clients, diags) -> do
         reportMcpDiagnostics diags
+        (localSkills, skillDiags) <- if spawnMcp then discoverSkills else pure ([], [])
+        reportSkillDiagnostics skillDiags
+        let reserved  = [ T.drop 1 name | (_, name, _) <- commandCatalog ]
+            mcpSkills =
+              [ Skill { skName         = peFullName e
+                      , skDescription  = peDescription e
+                      , skRequiredArgs = peRequiredArgs e
+                      , skSource       = McpPromptSkill (peServer e) (peName e)
+                      }
+              | c <- clients, e <- promptEntries c ]
+            skills = buildSkillRegistry reserved (localSkills ++ mcpSkills)
         let env = AppEnv
               { envConfig    = cfg
               , envDb        = conn
@@ -130,7 +147,7 @@ withAppEnv registry spawnMcp k = do
               , envEventChan = chan
               , envAbort     = abortVar
               , envMcp       = clients
-              , envSkills    = []
+              , envSkills    = skills
               }
         armed <- STM.newTVarIO False
         -- NOTE: the SIGINT hard-exit timer (see 'onSigInt') calls
@@ -146,6 +163,12 @@ reportMcpDiagnostics :: [McpDiagnostic] -> IO ()
 reportMcpDiagnostics =
   mapM_ (\d -> TIO.hPutStrLn stderr
     ("opencode-hs: MCP server '" <> mdServer d <> "' unavailable: " <> mdReason d))
+
+-- | Skill-discovery diagnostics go to stderr, like the MCP ones.
+reportSkillDiagnostics :: [SkillDiagnostic] -> IO ()
+reportSkillDiagnostics =
+  mapM_ (\d -> TIO.hPutStrLn stderr
+    ("opencode-hs: skill '" <> sdSkill d <> "' skipped: " <> sdReason d))
 
 -- ---------------------------------------------------------------------------
 -- run
