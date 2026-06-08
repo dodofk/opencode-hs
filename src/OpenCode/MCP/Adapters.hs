@@ -2,8 +2,7 @@
 
 -- | Convert discovered MCP capabilities into the app's own abstractions:
 -- tools and resources become 'SomeTool's on the dynamic-tool path; prompts
--- become 'PromptEntry' descriptors for the TUI. Also the pure parser for a
--- @\/name k=v@ prompt-invocation line.
+-- become 'PromptEntry' descriptors for the TUI.
 module OpenCode.MCP.Adapters
   ( PromptEntry (..)
   , mcpToolName
@@ -12,9 +11,6 @@ module OpenCode.MCP.Adapters
   , clientSomeTools
   , promptEntryOf
   , promptEntries
-  , promptSuggestEntries
-  , parsePromptInvocation
-  , missingArgs
   , resourceReadSchema
   ) where
 
@@ -144,29 +140,3 @@ promptEntryOf server p = PromptEntry
 
 promptEntries :: McpClient -> [PromptEntry]
 promptEntries c = map (promptEntryOf (mcName c)) (mcPrompts c)
-
--- | Autocomplete entries (slash-prefixed name + description) for every prompt
--- across the given clients.
-promptSuggestEntries :: [McpClient] -> [(Text, Text)]
-promptSuggestEntries cs =
-  [ ("/" <> peFullName e, peDescription e) | c <- cs, e <- promptEntries c ]
-
--- | Parse a @\/name k=v k2=v2@ prompt-invocation line. The name carries no
--- leading slash in the result. Tokens without an @=@ are ignored; the split is
--- on the FIRST @=@ (so @k=v=w@ yields @("k","v=w")@), and an empty value
--- (@foo=@) is passed through as @("foo","")@. 'Nothing' for input that is not a
--- single @\/word …@.
-parsePromptInvocation :: Text -> Maybe (Text, [(Text, Text)])
-parsePromptInvocation raw = case T.words (T.strip raw) of
-  (w : rest)
-    | Just nm <- T.stripPrefix "/" w, not (T.null nm) ->
-        Just (nm, [ (k, T.drop 1 vEq)
-                  | tok <- rest
-                  , let (k, vEq) = T.breakOn "=" tok
-                  , not (T.null k), not (T.null vEq) ])
-  _ -> Nothing
-
--- | Required arg names not present in the supplied key=value pairs.
-missingArgs :: PromptEntry -> [(Text, Text)] -> [Text]
-missingArgs entry args =
-  [ a | a <- peRequiredArgs entry, a `notElem` map fst args ]
