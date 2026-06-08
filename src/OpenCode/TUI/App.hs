@@ -356,16 +356,20 @@ openSkills st = case envSkills (asEnv st) of
   [] -> put st { asNotice = Just "no skills available" }
   ss -> put st { asMode = ModeOverlay (skillsOverlay ss) }
 
--- | Commit a skill selection from the overlay. No required args -> run now;
--- otherwise close the overlay and prefill @\/<name> @ for the user to add
--- key=value arguments (MCP prompts only — local skills have no required args).
+-- | Commit a skill selection from the overlay. Required args -> close the
+-- overlay and prefill @\/<name> @ for the user to add key=value arguments (MCP
+-- prompts only — local skills have no required args). No required args -> run now.
+-- The picker only opens via a 'whenIdle' gate, so the run state is already Idle
+-- here; the @asRunState@ re-check is defense-in-depth so the picker can never
+-- start a second concurrent run if that open-gate invariant is ever weakened.
 selectSkill :: Skill -> AppState -> EventM ResourceName AppState ()
 selectSkill s st
-  | null (skRequiredArgs s) = invokeSkill s "" st { asMode = ModeNormal }
-  | otherwise = put st
+  | not (null (skRequiredArgs s)) = put st
       { asMode  = ModeNormal
       , asInput = E.editorText InputEditor (Just 1) ("/" <> skName s <> " ")
       }
+  | asRunState st == Idle = invokeSkill s "" st { asMode = ModeNormal }
+  | otherwise = put st { asMode = ModeNormal, asNotice = Just "press Esc to abort the run first" }
 
 -- | Run a skill. Local skills render their body with the trailing free text
 -- substituted for @$ARGUMENTS@; MCP-prompt skills validate required args and

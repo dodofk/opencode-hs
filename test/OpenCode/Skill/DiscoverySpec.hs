@@ -51,6 +51,13 @@ spec = describe "discoverSkillsIn" $ do
       skills `shouldBe` []
       diags  `shouldBe` []
 
+  it "ignores a plain file in the root (not a skill directory)" $
+    withSystemTempDirectory "skills-plainfile" $ \root -> do
+      TIO.writeFile (root </> "README.md") "not a skill"
+      (skills, diags) <- discoverSkillsIn [root]
+      skills `shouldBe` []
+      diags  `shouldBe` []
+
   it "returns nothing for a non-existent root" $ do
     (skills, diags) <- discoverSkillsIn ["/no/such/path/skills"]
     skills `shouldBe` []
