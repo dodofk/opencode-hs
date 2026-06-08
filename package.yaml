@@ -121,6 +121,7 @@ library:
     - OpenCode.MCP.Startup
     - OpenCode.Skill.Types
     - OpenCode.Skill.Parse
+    - OpenCode.Skill.Registry
 
 executables:
   opencode-hs:
@@ -197,4 +198,5 @@ tests:
       - OpenCode.MCP.AdaptersSpec
       - OpenCode.MCP.StartupSpec
       - OpenCode.Skill.ParseSpec
+      - OpenCode.Skill.RegistrySpec
       - Paths_opencode_hs
