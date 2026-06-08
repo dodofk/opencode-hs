@@ -28,7 +28,7 @@ reuses). Each gets its own spec → plan → implementation cycle.
 | M13 | TUI interaction layer (slash + sessions + model) | done    | `34ac668..` |
 | M13.1 | Slash-command autocomplete             | done      | `8f2e9b1..`        |
 | M14 | MCP client (dynamic external tools)    | done      | `730a582..`        |
-| M15 | Skill system (named instruction bundles) | planned | —                  |
+| M15 | Skill system (local SKILL.md + MCP prompts) | done    | `4965a44..`        |
 
 MCP support was **dropped from v1** and is now scheduled post-v1 as **M14**; a
 **skill system** lands as **M15**. The original M3 was split: OpenAI ships first as M4, Anthropic deferred to M11. The original M4 (tools) and M7 (TUI) were each split into two milestones. Context-window summarization, auto-title, SIGINT handling, `--version`, and README polish were deferred from earlier milestones into M12.
@@ -591,28 +591,35 @@ a deterministic integration test spawns it, exercises the full handshake +
 `tools/list` + `tools/call` round-trip, and asserts the result. `list`,
 `export`, and `config check` spawn no servers.
 
-M15 (skill system) is next and will fold MCP prompts in as one skill source,
-unifying named instruction bundles across local files and remote MCP servers
-under a single invocation model.
+M15 (the skill system) shipped — see below.
 
-## M15 — Skill system (sub-project C) — PLANNED
+## M15 — Skill system (sub-project C) — DONE
 
-**Goal**: Named, described instruction bundles ("skills") discovered from a
-directory, invocable by the user (via M13's slash commands) and/or surfaced to
-the LLM, so domain workflows can be packaged and reused.
+Shipped: commits `4965a44..` (brainstorm → spec → plan → subagent-driven build;
+spec `docs/superpowers/specs/2026-06-08-skill-system-design.md`, plan
+`docs/superpowers/plans/2026-06-08-skill-system.md`).
 
-### Scope (to be refined in brainstorming)
+Outcome: a unified **skill** surface — named instruction bundles invoked as
+`/<name> [text]` that inject rendered text as a user turn and start a run. Two
+sources are merged under one `/skills` overlay + `/` autocomplete (the M14
+`/prompts` command was removed in favor of `/skills`):
 
-- **Discovery**: load skills from a configured directory; each skill has a name,
-  a description, and a body of instructions.
-- **Invocation**: user-invoked via `/skill-name` (M13 dispatcher) and/or
-  LLM-invoked via the M14 dynamic-tool path; injects the skill body into context.
-- **Config**: a skill-directory setting.
+- **Local skills**: `SKILL.md` files discovered from `<cwd>/.opencode-hs/skills/`
+  (project) and `~/.config/opencode-hs/skills/` (user); YAML frontmatter
+  (`name`/`description`) + a body with `$ARGUMENTS` substitution (trailing text
+  replaces the token, or is appended after a blank line).
+- **MCP prompts**: each connected server's prompts folded in as a skill source,
+  invoked `/<server>_<prompt> key=value`.
 
-### Acceptance (to be finalized in spec)
-
-- A skill file placed in the configured directory is discoverable.
-- Invoking the skill injects its instructions into the conversation.
+New modules `OpenCode.Skill.{Types,Parse,Registry,Discovery}` (pure layer +
+filesystem scan; never import `MCP.*`/`TUI.*`). `AppEnv.envSkills :: [Skill]` is
+populated at startup in `OpenCode.Run` (gated to interactive `run`, like MCP);
+local skills + MCP-prompt skills are merged by `buildSkillRegistry` with built-in
+command names reserved. Precedence: built-in > project > user > MCP. Invocation
+routes through `onEnter`/`invokeSkill` (Idle-gated, like every run-starting path);
+a malformed `SKILL.md` is skipped with a stderr diagnostic and discovery never
+throws. No new dependencies (frontmatter via the existing `yaml`). Built
+subagent-driven (fresh implementer + spec-then-quality review per task).
 
 ---
 
@@ -624,7 +631,7 @@ the LLM, so domain workflows can be packaged and reused.
 ## Out of scope for v1 (now scheduled post-v1)
 
 - **MCP client** — was postponed from v1 (the 6 built-in tools cover v1); now scheduled as **M14**.
-- **Skill system** — was deferred per SPEC §1; now scheduled as **M15**.
+- **Skill system** — was deferred per SPEC §1; shipped as **M15**.
 
 ## Still out of scope
 

@@ -134,7 +134,7 @@ Type these at the input line (Enter to run):
 | `/new`      | Start a new session and switch to it                      |
 | `/sessions` | Open a picker to switch to another stored session         |
 | `/model`    | Open a picker to change this session's model (persisted)  |
-| `/prompts`  | Open a picker to run an MCP prompt                        |
+| `/skills`   | Open a picker to run a skill (local or MCP prompt)        |
 | `/help`     | Show keys and commands                                    |
 | `/quit`     | Exit (same as Ctrl-C)                                     |
 
@@ -146,6 +146,37 @@ disappears when the line no longer starts with `/`.
 Pickers are modal: `↑/↓` to move, `Enter` to confirm, `Esc` to cancel.
 Context-changing commands (`/new`, `/sessions`, `/model`) are disabled while a
 run is streaming — press `Esc` to abort first.
+
+## Skills
+
+A **skill** is a named instruction bundle you invoke as `/<name> [text]`. Running
+a skill injects its rendered text as your next message and starts a run. Skills
+come from two sources, listed together under the `/skills` picker and the `/`
+autocomplete: local `SKILL.md` files and MCP server prompts.
+
+Local skills live in one directory per skill:
+
+```
+~/.config/opencode-hs/skills/<name>/SKILL.md   # user-level
+./.opencode-hs/skills/<name>/SKILL.md           # project-level (per repo)
+```
+
+A `SKILL.md` has optional YAML frontmatter and an instruction body:
+
+```markdown
+---
+name: explain          # optional; defaults to the directory name
+description: Explain a file in plain language
+---
+Explain what this code does, step by step: $ARGUMENTS
+```
+
+- Text typed after `/<name>` replaces `$ARGUMENTS` (or is appended after a blank
+  line if the body has no `$ARGUMENTS` token).
+- Precedence on a name clash: built-in command > project skill > user skill >
+  MCP prompt. Built-ins like `/help` can't be shadowed.
+- Skills are loaded once at startup; add one and restart to pick it up. A
+  malformed `SKILL.md` is skipped with a message on stderr.
 
 ## MCP servers
 
@@ -167,8 +198,9 @@ mcpServers:
   `filesystem_read_file`).
 - **Resources** are exposed as two tools per server: `<server>_list_resources`
   and `<server>_read_resource`.
-- **Prompts** appear in the `/` autocomplete and the `/prompts` picker; invoke
-  one with `/<server>_<prompt>` (add `key=value` arguments after the name).
+- **Prompts** appear in the `/` autocomplete and the `/skills` picker (see the
+  [Skills](#skills) section); invoke one with `/<server>_<prompt>` (add
+  `key=value` arguments after the name).
 
 Servers are started when a session runs (the TUI and `run`), and shut down on
 exit. A server that fails to start is skipped with a message on stderr; the rest
