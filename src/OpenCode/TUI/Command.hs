@@ -15,7 +15,7 @@ data Command
   = CmdNew            -- ^ @/new@
   | CmdSessions       -- ^ @/sessions@
   | CmdModel          -- ^ @/model@
-  | CmdPrompts        -- ^ @/prompts@ — pick an MCP prompt to run
+  | CmdSkills         -- ^ @/skills@ — pick a skill (local or MCP prompt) to run
   | CmdHelp           -- ^ @/help@
   | CmdQuit           -- ^ @/quit@
   | CmdUnknown Text   -- ^ slash-prefixed but unrecognized (carries the word)
@@ -41,7 +41,7 @@ parseCommand raw =
       "/new"      -> CmdNew
       "/sessions" -> CmdSessions
       "/model"    -> CmdModel
-      "/prompts"  -> CmdPrompts
+      "/skills"   -> CmdSkills
       "/help"     -> CmdHelp
       "/quit"     -> CmdQuit
       other       -> CmdUnknown other
@@ -54,7 +54,7 @@ commandCatalog =
   [ (CmdNew,      "/new",      "start a new session")
   , (CmdSessions, "/sessions", "switch session")
   , (CmdModel,    "/model",    "change model (this session)")
-  , (CmdPrompts,  "/prompts",  "run an MCP prompt")
+  , (CmdSkills,   "/skills",   "run a skill")
   , (CmdHelp,     "/help",     "show help")
   , (CmdQuit,     "/quit",     "exit")
   ]

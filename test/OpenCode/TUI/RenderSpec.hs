@@ -191,7 +191,7 @@ spec = do
       show pic `shouldContain` "start a new session"   -- /new
       show pic `shouldContain` "switch session"        -- /sessions
       show pic `shouldContain` "change model"          -- /model
-      show pic `shouldContain` "run an MCP prompt"      -- /prompts
+      show pic `shouldContain` "run a skill"            -- /skills
       show pic `shouldContain` "show help"             -- /help
       show pic `shouldContain` "exit"                  -- /quit
 

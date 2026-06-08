@@ -6,9 +6,9 @@ import Test.Hspec
 
 import OpenCode.TUI.Overlay
   ( helpOverlay, modelsOverlay, overlayCount, overlayLabels, overlayMove
-  , overlaySelected, promptsOverlay, sessionsOverlay )
+  , overlaySelected, skillsOverlay, sessionsOverlay )
 import OpenCode.TUI.Command (commandCatalog)
-import OpenCode.MCP.Adapters (PromptEntry (..))
+import OpenCode.Skill.Types (Skill (..), SkillSource (..))
 import OpenCode.TUI.Types (Overlay (..))
 import OpenCode.Types (ModelId (..), ProviderId (..), Session (..), SessionId (..))
 
@@ -46,12 +46,12 @@ spec = do
       overlayLabels (ovKind ov) `shouldBe`
         ["  one  2026-06-01 00:00", "* two  2026-06-01 00:00"]
 
-  describe "promptsOverlay" $ do
-    it "labels rows by full name and description" $ do
-      let es = [ PromptEntry "srv_greet" "srv" "greet" "say hi" []
-               , PromptEntry "srv_bye" "srv" "bye" "" [] ]
-          ov = promptsOverlay es
-      overlayLabels (ovKind ov) `shouldBe` ["srv_greet  say hi", "srv_bye"]
+  describe "skillsOverlay" $ do
+    it "labels rows by name, description, and source tag" $ do
+      let ss = [ Skill "greet" "say hi" [] (LocalSkill "b")
+               , Skill "srv_bye" "" ["x"] (McpPromptSkill "srv" "bye") ]
+          ov = skillsOverlay ss
+      overlayLabels (ovKind ov) `shouldBe` ["greet  say hi", "srv_bye  (mcp:srv)"]
       overlayCount (ovKind ov)  `shouldBe` 2
 
   describe "helpOverlay / catalog consistency" $
