@@ -50,7 +50,7 @@ instance FromJSON SkillCall where
 -- by the user-typed @/<name>@ invocation (TUI) and the model's @skill@ tool.
 -- Local skills substitute @$ARGUMENTS@ (pure, never 'Left'); MCP prompts parse
 -- @key=value@ args, validate required args, and fetch from the live server.
--- 'Left' is human-readable guidance; never throws.
+-- 'Left' is human-readable guidance (including a blank MCP prompt result); never throws. A local skill may still render blank — callers guard that.
 renderSkill :: [McpClient] -> Skill -> Text -> IO (Either Text Text)
 renderSkill clients skill rest = case skSource skill of
   LocalSkill body ->
@@ -65,7 +65,11 @@ renderSkill clients skill rest = case skSource skill of
         pure $ case result of
           Left ex         -> Left ("prompt error: " <> T.pack (displayException ex))
           Right (Left e)  -> Left ("prompt error: " <> renderMcpError e)
-          Right (Right g) -> Right (T.intercalate "\n\n" (map pmText (gprMessages g)))
+          Right (Right g) ->
+            let body = T.intercalate "\n\n" (map pmText (gprMessages g))
+            in if T.null (T.strip body)
+                 then Left "prompt returned no content"
+                 else Right body
   where args = parseArgs rest
 
 -- | Execute one model call against the registry snapshot. Skill-level problems

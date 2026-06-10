@@ -59,7 +59,14 @@ spec = do
       r <- runSkillCall [] [blank] (call "empty" "")
       r `shouldSatisfy` T.isInfixOf "produced no content"
 
+    it "treats an omitted arguments key as empty text" $
+      runSkillCall [] [localSkill] (object ["name" .= ("explain" :: Text)])
+        `shouldReturn` "Explain this, step by step: "
+
   describe "skillTool" $ do
+    it "skillToolName is the literal 'skill'" $
+      skillToolName `shouldBe` "skill"
+
     it "is absent when no skills exist" $
       fmap toolName (skillTool [] []) `shouldBe` Nothing
 
