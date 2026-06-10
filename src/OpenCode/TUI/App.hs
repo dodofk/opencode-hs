@@ -44,7 +44,6 @@ import Control.Exception (SomeException, displayException, try)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State.Class (get, modify, put)
-import Data.List (find)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Sequence ((|>))
 import qualified Data.Sequence as Seq
@@ -73,11 +72,9 @@ import OpenCode.TUI.Render
   , userAttr
   )
 import OpenCode.Config (Config (..))
-import OpenCode.MCP.Client (McpClient (..), McpError, getPrompt, renderMcpError)
-import OpenCode.MCP.Protocol (GetPromptResult (..), PromptMessage (..))
-import OpenCode.Skill.Types (Skill (..), SkillSource (..))
-import OpenCode.Skill.Parse (substituteArgs, parseArgs, missingArgs)
+import OpenCode.Skill.Types (Skill (..))
 import OpenCode.Skill.Registry (matchSkill, skillSuggestEntries)
+import OpenCode.SkillTool (renderSkill)
 import OpenCode.TUI.Command (Command (..), parseCommand, commandSuggestions, clampSel)
 import OpenCode.TUI.Overlay
   ( helpOverlay, modelsOverlay, skillsOverlay, sessionsOverlay
@@ -371,35 +368,19 @@ selectSkill s st
   | asRunState st == Idle = invokeSkill s "" st { asMode = ModeNormal }
   | otherwise = put st { asMode = ModeNormal, asNotice = Just "press Esc to abort the run first" }
 
--- | Run a skill. Local skills render their body with the trailing free text
--- substituted for @$ARGUMENTS@; MCP-prompt skills validate required args and
--- fetch via 'getPrompt'. Either way the resulting text is injected as a user
--- turn and run. 'invokeSkill' clears the input on every branch.
+-- | Run a skill. Rendering is delegated to 'renderSkill' — the same path the
+-- model's umbrella @skill@ tool uses — so the user-typed and model-invoked
+-- flows can never drift. The rendered text is injected as a user turn and run.
+-- 'invokeSkill' clears the input on every branch.
 invokeSkill :: Skill -> Text -> AppState -> EventM ResourceName AppState ()
-invokeSkill skill rest st = case skSource skill of
-  LocalSkill body ->
-    let rendered = substituteArgs body (T.strip rest)
-    in if T.null (T.strip rendered)
-         then put st { asInput = emptyEditor, asNotice = Just "skill produced no content" }
-         else runText rendered st
-  McpPromptSkill server prompt -> case missingArgs (skRequiredArgs skill) args of
-    (m : _) -> put st { asInput = emptyEditor, asNotice = Just ("missing required arg: " <> m) }
-    []      -> case find ((== server) . mcName) (envMcp (asEnv st)) of
-      Nothing -> put st { asInput = emptyEditor, asNotice = Just "prompt server unavailable" }
-      Just c  -> do
-        result <- liftIO (try (getPrompt c prompt args)
-                            :: IO (Either SomeException (Either McpError GetPromptResult)))
-        case result of
-          Left ex        -> put st { asInput = emptyEditor
-                                   , asNotice = Just ("prompt error: " <> T.pack (displayException ex)) }
-          Right (Left e) -> put st { asInput = emptyEditor
-                                   , asNotice = Just ("prompt error: " <> renderMcpError e) }
-          Right (Right gp) ->
-            let promptText = T.intercalate "\n\n" (map pmText (gprMessages gp))
-            in if T.null (T.strip promptText)
-                 then put st { asInput = emptyEditor, asNotice = Just "prompt returned no content" }
-                 else runText promptText st
-  where args = parseArgs rest
+invokeSkill skill rest st = do
+  result <- liftIO (renderSkill (envMcp (asEnv st)) skill rest)
+  case result of
+    Left err -> put st { asInput = emptyEditor, asNotice = Just err }
+    Right rendered
+      | T.null (T.strip rendered) ->
+          put st { asInput = emptyEditor, asNotice = Just "skill produced no content" }
+      | otherwise -> runText rendered st
 
 -- | Inject text as a user turn, clear the input, and start the run. Shared by
 -- both skill sources. Uses 'appendUserMessage' (an unconditional append + clear)
