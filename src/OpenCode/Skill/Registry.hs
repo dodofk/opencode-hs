@@ -1,6 +1,7 @@
--- | Pure merge, lookup, and autocomplete for the unified skill list. Knows
--- nothing of MCP or the TUI — callers pass candidates already in precedence
--- order and a list of reserved (built-in command) names to exclude.
+-- | Pure merge, lookup, autocomplete, and tool schema/description building for
+-- the unified skill list. Knows nothing of MCP or the TUI — callers pass
+-- candidates already in precedence order and a list of reserved (built-in
+-- command) names to exclude.
 module OpenCode.Skill.Registry
   ( buildSkillRegistry
   , lookupSkill
