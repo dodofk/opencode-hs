@@ -1,0 +1,71 @@
+module OpenCode.SkillToolSpec (spec) where
+
+import qualified Data.Aeson as Aeson
+import Data.Aeson (object, (.=))
+import Data.Text (Text)
+import qualified Data.Text as T
+import Test.Hspec
+
+import OpenCode.SkillTool
+import OpenCode.Skill.Types (Skill (..), SkillSource (..))
+import OpenCode.Tool.Types (SomeTool (..))
+
+localSkill :: Skill
+localSkill = Skill "explain" "explain a file" []
+  (LocalSkill "Explain this, step by step: $ARGUMENTS")
+
+mcpSkill :: Skill
+mcpSkill = Skill "srv_greet" "greet someone" ["who"]
+  (McpPromptSkill "srv" "greet")
+
+call :: Text -> Text -> Aeson.Value
+call name args = object ["name" .= name, "arguments" .= args]
+
+spec :: Spec
+spec = do
+  describe "renderSkill (no MCP needed)" $ do
+    it "renders a local skill body with $ARGUMENTS substituted" $
+      renderSkill [] localSkill "src/Foo.hs"
+        `shouldReturn` Right "Explain this, step by step: src/Foo.hs"
+
+    it "reports a missing required arg before contacting any server" $
+      renderSkill [] mcpSkill "lang=en"
+        `shouldReturn` Left "missing required arg: who"
+
+    it "reports an unavailable server when args are satisfied" $
+      renderSkill [] mcpSkill "who=ada"
+        `shouldReturn` Left "prompt server unavailable"
+
+  describe "runSkillCall" $ do
+    it "renders the named local skill" $
+      runSkillCall [] [localSkill] (call "explain" "src/Foo.hs")
+        `shouldReturn` "Explain this, step by step: src/Foo.hs"
+
+    it "returns guidance listing valid names for an unknown skill" $ do
+      r <- runSkillCall [] [localSkill] (call "nope" "")
+      r `shouldSatisfy` T.isInfixOf "unknown skill 'nope'"
+      r `shouldSatisfy` T.isInfixOf "explain"
+
+    it "returns guidance for a skill-level failure (missing arg)" $ do
+      r <- runSkillCall [] [mcpSkill] (call "srv_greet" "")
+      r `shouldSatisfy` T.isInfixOf "missing required arg: who"
+
+    it "returns guidance for a malformed call object" $ do
+      r <- runSkillCall [] [localSkill] (object ["bogus" .= True])
+      r `shouldSatisfy` T.isInfixOf "invalid skill call"
+
+    it "flags a skill that renders to blank" $ do
+      let blank = Skill "empty" "" [] (LocalSkill "$ARGUMENTS")
+      r <- runSkillCall [] [blank] (call "empty" "")
+      r `shouldSatisfy` T.isInfixOf "produced no content"
+
+  describe "skillTool" $ do
+    it "is absent when no skills exist" $
+      fmap toolName (skillTool [] []) `shouldBe` Nothing
+
+    it "is named 'skill' and carries the enumerated description" $
+      case skillTool [] [localSkill] of
+        Nothing -> expectationFailure "expected the tool to exist"
+        Just t  -> do
+          toolName t `shouldBe` skillToolName
+          toolDesc t `shouldSatisfy` T.isInfixOf "explain a file"

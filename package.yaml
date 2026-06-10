@@ -123,6 +123,7 @@ library:
     - OpenCode.Skill.Parse
     - OpenCode.Skill.Registry
     - OpenCode.Skill.Discovery
+    - OpenCode.SkillTool
 
 executables:
   opencode-hs:
@@ -201,4 +202,5 @@ tests:
       - OpenCode.Skill.ParseSpec
       - OpenCode.Skill.RegistrySpec
       - OpenCode.Skill.DiscoverySpec
+      - OpenCode.SkillToolSpec
       - Paths_opencode_hs

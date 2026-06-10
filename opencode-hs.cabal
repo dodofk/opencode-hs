@@ -62,6 +62,7 @@ library
       OpenCode.Skill.Parse
       OpenCode.Skill.Registry
       OpenCode.Skill.Discovery
+      OpenCode.SkillTool
   other-modules:
       Paths_opencode_hs
   hs-source-dirs:
@@ -252,6 +253,7 @@ test-suite opencode-hs-test
       OpenCode.Skill.ParseSpec
       OpenCode.Skill.RegistrySpec
       OpenCode.Skill.DiscoverySpec
+      OpenCode.SkillToolSpec
       Paths_opencode_hs
   hs-source-dirs:
       test
