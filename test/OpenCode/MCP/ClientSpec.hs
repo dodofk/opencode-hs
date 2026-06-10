@@ -1,46 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 module OpenCode.MCP.ClientSpec (spec) where
 
-import Control.Exception (bracket)
 import qualified Data.Aeson as Aeson
 import Data.Text (Text)
 import qualified Data.Text as T
-import System.Directory (doesFileExist)
-import System.Environment (lookupEnv)
-import System.FilePath ((</>))
 import Test.Hspec
 
-import Paths_opencode_hs (getBinDir)
-import OpenCode.Config (McpServerConfig (..))
 import OpenCode.MCP.Adapters (clientSomeTools, resourceTools)
-import OpenCode.MCP.Client
+import OpenCode.MCP.Client (callTool, getPrompt, mcCaps, mcPrompts,
+                            mcResources, mcTools, readResource, renderMcpError)
 import OpenCode.MCP.Protocol
 import OpenCode.Tool.Types (SomeTool (..))
-
--- | Locate the built mock server: honor OPENCODE_MCP_MOCK, else look in the
--- package's bin dir (stack builds executables before running the test suite).
-mockServerPath :: IO (Maybe FilePath)
-mockServerPath = do
-  override <- lookupEnv "OPENCODE_MCP_MOCK"
-  case override of
-    Just p  -> pure (Just p)
-    Nothing -> do
-      bin <- getBinDir
-      let p = bin </> "opencode-mcp-mock"
-      ok <- doesFileExist p
-      pure (if ok then Just p else Nothing)
-
-withMock :: (McpClient -> IO a) -> IO a
-withMock k = do
-  mp <- mockServerPath
-  case mp of
-    Nothing   -> error "opencode-mcp-mock not found (build it with `stack build`)"
-    Just path -> do
-      let cfg = McpServerConfig { mcsCommand = path, mcsArgs = [], mcsEnv = [], mcsEnabled = True }
-      r <- connect "mock" cfg
-      case r of
-        Left e  -> error ("mock connect failed: " <> T.unpack (renderMcpError e))
-        Right c -> bracket (pure c) shutdown k
+import OpenCode.McpMock (withMock)
 
 spec :: Spec
 spec = describe "OpenCode.MCP.Client (against the mock server)" $ do

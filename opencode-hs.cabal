@@ -247,6 +247,7 @@ test-suite opencode-hs-test
       OpenCode.TUI.RenderSpec
       OpenCode.TypesSpec
       OpenCode.MCP.ProtocolSpec
+      OpenCode.McpMock
       OpenCode.MCP.ClientSpec
       OpenCode.MCP.AdaptersSpec
       OpenCode.MCP.StartupSpec
