@@ -29,6 +29,8 @@ mockServerPath = do
       ok <- doesFileExist p
       pure (if ok then Just p else Nothing)
 
+-- | Connect to the mock server, run an action with the live client, and shut
+-- the server down afterwards ('bracket'-style).
 withMock :: (McpClient -> IO a) -> IO a
 withMock k = do
   mp <- mockServerPath
