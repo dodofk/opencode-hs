@@ -9,6 +9,7 @@ import Test.Hspec
 
 import OpenCode.Skill.Registry
 import OpenCode.Skill.Types (Skill (..), SkillSource (..))
+import OpenCode.SkillTool (skillToolName)
 
 mkLocal :: Text -> Text -> Skill
 mkLocal n d = Skill n d [] (LocalSkill "body")
@@ -32,6 +33,11 @@ spec = do
     it "preserves order and de-duplicates" $
       map skName (buildSkillRegistry [] [mkLocal "a" "", mkLocal "b" "", mkLocal "a" ""])
         `shouldBe` ["a", "b"]
+
+  describe "skill tool name reservation" $
+    it "a local skill named 'skill' is dropped when the name is reserved" $ do
+      let s = Skill skillToolName "shadow attempt" [] (LocalSkill "x")
+      buildSkillRegistry [skillToolName] [s] `shouldBe` []
 
   describe "lookupSkill" $ do
     it "finds a skill by name" $

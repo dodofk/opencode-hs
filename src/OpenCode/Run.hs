@@ -58,6 +58,7 @@ import OpenCode.MCP.Startup
 import OpenCode.Skill.Discovery (SkillDiagnostic (..), discoverSkills)
 import OpenCode.Skill.Registry (buildSkillRegistry)
 import OpenCode.Skill.Types (Skill (..), SkillSource (McpPromptSkill))
+import OpenCode.SkillTool (skillTool, skillToolName)
 import OpenCode.TUI.Command (commandCatalog)
 import OpenCode.Session
   ( createSession, loadSession, processUserMessage, streamerForProvider )
@@ -111,7 +112,9 @@ dispatch cfg env = \case
 -- @spawnMcp@ is set, every enabled MCP server is connected, its tools merged
 -- into the registry, and all clients shut down (via 'bracket') when the
 -- continuation returns — normally or via exception. Under the same gate, local
--- skills are discovered and merged with MCP prompts into 'envSkills'.
+-- skills are discovered and merged with MCP prompts into 'envSkills', and the
+-- umbrella @skill@ tool (when any skills exist) is merged into the registry so
+-- the model can invoke skills autonomously.
 withAppEnv :: Tool.ToolRegistry -> Bool -> (Config -> AppEnv -> IO a) -> IO a
 withAppEnv registry spawnMcp k = do
   cfgResult <- loadConfig
@@ -131,7 +134,7 @@ withAppEnv registry spawnMcp k = do
         reportMcpDiagnostics diags
         (localSkills, skillDiags) <- if spawnMcp then discoverSkills else pure ([], [])
         reportSkillDiagnostics skillDiags
-        let reserved  = [ T.drop 1 name | (_, name, _) <- commandCatalog ]
+        let reserved  = skillToolName : [ T.drop 1 name | (_, name, _) <- commandCatalog ]
             mcpSkills =
               [ Skill { skName         = peFullName e
                       , skDescription  = peDescription e
@@ -143,7 +146,8 @@ withAppEnv registry spawnMcp k = do
         let env = AppEnv
               { envConfig    = cfg
               , envDb        = conn
-              , envRegistry  = mcpRegistryAdditions clients registry
+              , envRegistry  = maybe id Tool.registerTool (skillTool clients skills)
+                                 (mcpRegistryAdditions clients registry)
               , envEventChan = chan
               , envAbort     = abortVar
               , envMcp       = clients
