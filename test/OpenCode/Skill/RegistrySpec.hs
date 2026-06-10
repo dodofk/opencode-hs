@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module OpenCode.Skill.RegistrySpec (spec) where
 
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.KeyMap as KM
+import qualified Data.Text as T
 import Data.Text (Text)
 import Test.Hspec
 
@@ -49,3 +52,34 @@ spec = do
   describe "skillSuggestEntries" $
     it "slash-prefixes names and pairs them with descriptions" $
       skillSuggestEntries [mkLocal "greet" "say hi"] `shouldBe` [("/greet", "say hi")]
+
+  describe "skillToolDescription" $ do
+    it "enumerates one line per skill with name and description" $ do
+      let ss = [ Skill "explain" "explain a file" [] (LocalSkill "body")
+               , Skill "srv_greet" "greet someone" ["who"] (McpPromptSkill "srv" "greet") ]
+          d  = skillToolDescription ss
+      d `shouldSatisfy` T.isInfixOf "  - explain: explain a file"
+      d `shouldSatisfy` T.isInfixOf "  - srv_greet: greet someone (needs: who)"
+
+    it "starts with the invocation instruction" $
+      skillToolDescription [Skill "a" "b" [] (LocalSkill "x")]
+        `shouldSatisfy` T.isPrefixOf "Invoke a named skill"
+
+  describe "skillToolSchema" $ do
+    it "is an object schema requiring name, with the skill names as the enum" $ do
+      let v = skillToolSchema [ Skill "a" "" [] (LocalSkill "x")
+                              , Skill "b" "" [] (LocalSkill "y") ]
+      case v of
+        Aeson.Object o -> do
+          KM.lookup "required" o `shouldBe` Just (Aeson.toJSON (["name"] :: [T.Text]))
+          case KM.lookup "properties" o of
+            Just (Aeson.Object props) -> case KM.lookup "name" props of
+              Just (Aeson.Object nameP) ->
+                KM.lookup "enum" nameP `shouldBe` Just (Aeson.toJSON (["a", "b"] :: [T.Text]))
+              _ -> expectationFailure "properties.name missing"
+            _ -> expectationFailure "properties missing"
+        _ -> expectationFailure "schema is not an object"
+
+    it "round-trips through aeson" $ do
+      let v = skillToolSchema [Skill "a" "" [] (LocalSkill "x")]
+      Aeson.decode (Aeson.encode v) `shouldBe` Just v
