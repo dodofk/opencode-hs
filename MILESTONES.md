@@ -621,6 +621,26 @@ a malformed `SKILL.md` is skipped with a stderr diagnostic and discovery never
 throws. No new dependencies (frontmatter via the existing `yaml`). Built
 subagent-driven (fresh implementer + spec-then-quality review per task).
 
+## M16 — Model-invoked skills (the `skill` tool) — DONE
+
+Skills become model-invokable. A single umbrella **`skill` tool** (built on the
+M14 `DynamicTool` tag, registered only when at least one skill exists) exposes
+every discovered skill — local `SKILL.md` and MCP prompts — to the model: the
+tool's description enumerates `name — description (needs: args)` lines, the
+input schema's `name` enum pins the valid names, and the executor returns the
+rendered skill body as the tool result (progressive disclosure). Skill-level
+failures (unknown name, missing required args, fetch errors, blank render) come
+back as guidance text rather than thrown errors, so the model can self-correct.
+
+New module `OpenCode.SkillTool` (`renderSkill`, `runSkillCall`, `skillTool`) is
+the only module that imports both `Skill.*` and `MCP.*`; the pure builders
+(`skillToolSchema`, `skillToolDescription`) live in `OpenCode.Skill.Registry`.
+The TUI's `invokeSkill` now delegates to the shared `renderSkill`, so the
+user-typed and model paths cannot drift. `Run.withAppEnv` registers the tool
+into `envRegistry` (after the MCP additions, so `skill` is unshadowable) and
+reserves the name `skill` in `buildSkillRegistry`. Headless `run --no-tui` gets
+model-invoked skills for free. No new dependencies.
+
 ---
 
 ## Dependency notes

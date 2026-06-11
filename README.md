@@ -149,10 +149,12 @@ run is streaming — press `Esc` to abort first.
 
 ## Skills
 
-A **skill** is a named instruction bundle you invoke as `/<name> [text]`. Running
-a skill injects its rendered text as your next message and starts a run. Skills
-come from two sources, listed together under the `/skills` picker and the `/`
-autocomplete: local `SKILL.md` files and MCP server prompts.
+A **skill** is a named instruction bundle, invoked either by you as
+`/<name> [text]` or autonomously by the model through the `skill` tool. A
+user-typed skill injects its rendered text as your next message and starts a
+run; a model-invoked skill returns its rendered text as a tool result mid-run.
+Skills come from two sources, listed together under the `/skills` picker and
+the `/` autocomplete: local `SKILL.md` files and MCP server prompts.
 
 Local skills live in one directory per skill:
 
@@ -177,6 +179,11 @@ Explain what this code does, step by step: $ARGUMENTS
   MCP prompt. Built-ins like `/help` can't be shadowed.
 - Skills are loaded once at startup; add one and restart to pick it up. A
   malformed `SKILL.md` is skipped with a message on stderr.
+- Every skill (local or MCP prompt) is also exposed to the model through a
+  single `skill` tool whose description lists the available names — the model
+  can decide mid-run to pull a skill's instructions into context. The name
+  `skill` is reserved (a skill can't take it). With zero skills, the tool is
+  not registered.
 
 ## MCP servers
 
