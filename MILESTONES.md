@@ -626,11 +626,13 @@ subagent-driven (fresh implementer + spec-then-quality review per task).
 Skills become model-invokable. A single umbrella **`skill` tool** (built on the
 M14 `DynamicTool` tag, registered only when at least one skill exists) exposes
 every discovered skill — local `SKILL.md` and MCP prompts — to the model: the
-tool's description enumerates `name — description (needs: args)` lines, the
+tool's description enumerates `- name: description (needs: args)` lines, the
 input schema's `name` enum pins the valid names, and the executor returns the
 rendered skill body as the tool result (progressive disclosure). Skill-level
 failures (unknown name, missing required args, fetch errors, blank render) come
 back as guidance text rather than thrown errors, so the model can self-correct.
+(That includes a structurally malformed `skill` call: the tool's input type is
+raw JSON, so the generic `ToolError` decode path can never fire for it.)
 
 New module `OpenCode.SkillTool` (`renderSkill`, `runSkillCall`, `skillTool`) is
 the only module that imports both `Skill.*` and `MCP.*`; the pure builders

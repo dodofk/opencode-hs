@@ -50,7 +50,8 @@ instance FromJSON SkillCall where
 -- by the user-typed @/<name>@ invocation (TUI) and the model's @skill@ tool.
 -- Local skills substitute @$ARGUMENTS@ (pure, never 'Left'); MCP prompts parse
 -- @key=value@ args, validate required args, and fetch from the live server.
--- 'Left' is human-readable guidance (including a blank MCP prompt result); never throws. A local skill may still render blank — callers guard that.
+-- 'Left' is human-readable guidance (including a blank MCP prompt result);
+-- never throws. A local skill may still render blank — callers guard that.
 renderSkill :: [McpClient] -> Skill -> Text -> IO (Either Text Text)
 renderSkill clients skill rest = case skSource skill of
   LocalSkill body ->
