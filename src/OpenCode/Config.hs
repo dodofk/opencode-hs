@@ -8,6 +8,7 @@ module OpenCode.Config
   ( -- * Public types
     Config (..)
   , ProviderConfig (..)
+  , ToolsConfig (..)
   , McpServerConfig (..)
   , ConfigError (..)
     -- * Loading
@@ -25,6 +26,7 @@ module OpenCode.Config
   , ApiKeyFile (..)
   , ModelIdFile (..)
   , McpServerConfigFile (..)
+  , ToolsConfigFile (..)
   , emptyConfigFile
   ) where
 
@@ -49,6 +51,7 @@ data Config = Config
   { providers    :: ProviderConfig
   , defaultModel :: ModelId
   , mcpServers   :: [(Text, McpServerConfig)]   -- ^ name -> config, in ascending name order
+  , tools        :: ToolsConfig
   }
   deriving stock (Show, Eq)
 
@@ -69,6 +72,12 @@ data McpServerConfig = McpServerConfig
   }
   deriving stock (Show, Eq)
 
+data ToolsConfig = ToolsConfig
+  { braveKey  :: Maybe ApiKey
+  , githubKey :: Maybe ApiKey
+  }
+  deriving stock (Show, Eq)
+
 data ConfigError
   = ConfigParseError Text     -- ^ malformed YAML
   | ConfigMissingKey Text     -- ^ no API key found anywhere
@@ -83,17 +92,19 @@ data ConfigFile = ConfigFile
   { cfProviders    :: Maybe ProviderConfigFile
   , cfDefaultModel :: Maybe ModelIdFile
   , cfMcpServers   :: Maybe (Map Text McpServerConfigFile)
+  , cfTools        :: Maybe ToolsConfigFile
   }
   deriving stock (Show, Eq)
 
 emptyConfigFile :: ConfigFile
-emptyConfigFile = ConfigFile Nothing Nothing Nothing
+emptyConfigFile = ConfigFile Nothing Nothing Nothing Nothing
 
 instance FromJSON ConfigFile where
   parseJSON = withObject "ConfigFile" $ \o -> ConfigFile
     <$> o .:? "providers"
     <*> o .:? "defaultModel"
     <*> o .:? "mcpServers"
+    <*> o .:? "tools"
 
 data ProviderConfigFile = ProviderConfigFile
   { cfOpenai    :: Maybe ApiKeyFile
@@ -140,6 +151,17 @@ instance FromJSON McpServerConfigFile where
     <*> o .:? "env"
     <*> o .:? "enabled"
 
+data ToolsConfigFile = ToolsConfigFile
+  { tcfBrave  :: Maybe ApiKeyFile
+  , tcfGithub :: Maybe ApiKeyFile
+  }
+  deriving stock (Show, Eq)
+
+instance FromJSON ToolsConfigFile where
+  parseJSON = withObject "ToolsConfigFile" $ \o -> ToolsConfigFile
+    <$> o .:? "braveApiKey"
+    <*> o .:? "githubToken"
+
 -- ---------------------------------------------------------------------------
 -- Environment variable overrides
 -- ---------------------------------------------------------------------------
@@ -149,6 +171,8 @@ data EnvOverride = EnvOverride
   { eoOpenAIKey    :: Maybe ApiKey
   , eoAnthropicKey :: Maybe ApiKey
   , eoMiniMaxKey   :: Maybe ApiKey
+  , eoBraveKey     :: Maybe ApiKey
+  , eoGithubKey    :: Maybe ApiKey
   }
   deriving stock (Show, Eq)
 
@@ -157,6 +181,8 @@ loadEnvVars = EnvOverride
   <$> readKey "OPENAI_API_KEY"
   <*> readKey "ANTHROPIC_API_KEY"
   <*> readKey "MINIMAX_API_KEY"
+  <*> readKey "BRAVE_API_KEY"
+  <*> readKey "GITHUB_TOKEN"
   where
     readKey var = fmap (ApiKey . Text.pack) <$> lookupEnv var
 
@@ -194,6 +220,12 @@ buildConfig cf env =
     providerCfg = ProviderConfig { openaiKey, anthropicKey, minimaxKey }
     defModel    = maybe (pickDefaultModel providerCfg) toModelId (cfDefaultModel cf)
     mcpList     = maybe [] (map toMcpServer . Map.toList) (cfMcpServers cf)
+
+    braveKey'  = eoBraveKey  env
+             <|> (afApiKey <$> (tcfBrave  =<< cfTools cf))
+    githubKey' = eoGithubKey env
+             <|> (afApiKey <$> (tcfGithub =<< cfTools cf))
+    toolsCfg   = ToolsConfig { braveKey = braveKey', githubKey = githubKey' }
   in
     if isNothing openaiKey && isNothing anthropicKey && isNothing minimaxKey
       then Left $ ConfigMissingKey
@@ -203,6 +235,7 @@ buildConfig cf env =
         { providers    = providerCfg
         , defaultModel = defModel
         , mcpServers   = mcpList
+        , tools        = toolsCfg
         }
 
 -- | When no @defaultModel@ is configured, pick one from whichever provider key

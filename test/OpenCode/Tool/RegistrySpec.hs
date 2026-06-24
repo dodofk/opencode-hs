@@ -20,7 +20,10 @@ spec = describe "defaultBuiltinRegistry" $ do
   it "registers all 6 built-in tools by name" $
     Map.keys (unRegistry defaultBuiltinRegistry)
       `shouldMatchList`
-        ["read_file", "write_file", "edit_file", "bash", "glob", "grep"]
+        [ "read_file", "write_file", "edit_file", "bash", "glob", "grep"
+        , "web_search", "web_fetch"
+        , "github_search_code", "github_read_issue", "github_fetch_file"
+        ]
 
   it "is accessible from AppEnv via envRegistry" $
     let env = AppEnv
@@ -29,10 +32,12 @@ spec = describe "defaultBuiltinRegistry" $ do
           , envRegistry  = defaultBuiltinRegistry
           , envEventChan = undefined
           , envAbort     = undefined
-          , envMcp       = []
-          , envSkills    = []
+          , envMcp         = []
+          , envSkills      = []
+          , envHttpBackend = undefined
+          , envTools       = undefined
           }
-    in Map.size (unRegistry (envRegistry env)) `shouldBe` 6
+    in Map.size (unRegistry (envRegistry env)) `shouldBe` 11
 
   it "round-trips write_file then read_file through executeTool" $
     withSystemTempDirectory "reg" $ \dir -> do
@@ -43,8 +48,10 @@ spec = describe "defaultBuiltinRegistry" $ do
             , envRegistry  = defaultBuiltinRegistry
             , envEventChan = undefined
             , envAbort     = undefined
-            , envMcp       = []
-            , envSkills    = []
+            , envMcp         = []
+            , envSkills      = []
+            , envHttpBackend = undefined
+            , envTools       = undefined
             }
       written <- runExceptT $ runReaderT
         (executeTool defaultBuiltinRegistry "write_file"

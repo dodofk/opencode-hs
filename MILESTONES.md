@@ -4,12 +4,12 @@ Each milestone is self-contained, testable, and merges as a single PR.
 Milestones are sequenced; no parallelism is assumed for solo development.
 Acceptance for each is one or more concrete shell commands plus expected outcome — not narrative.
 
-## Status snapshot (as of 2026-06-11)
+## Status snapshot (as of 2026-06-24)
 
 v1 (M0–M12) is complete. M13–M16 are the post-v1 roadmap, brainstormed as
 sub-projects A/B/C (M13–M15) sequenced A → B → C, followed by M16 (a focused
 follow-on to M15 that makes skills model-invokable). Each gets its own spec →
-plan → implementation cycle.
+plan → implementation cycle. M17 adds networked tools (web + GitHub).
 
 | #   | Title                                  | Status    | Commit / PR        |
 | --- | -------------------------------------- | --------- | ------------------ |
@@ -31,6 +31,7 @@ plan → implementation cycle.
 | M14 | MCP client (dynamic external tools)    | done      | `730a582..`        |
 | M15 | Skill system (local SKILL.md + MCP prompts) | done    | `4965a44..`        |
 | M16 | Model-invoked skills (the `skill` tool) | done     | `bec445d..`        |
+| M17 | Web & GitHub tools                     | done      | (pending commit)   |
 
 MCP support was **dropped from v1** and is now scheduled post-v1 as **M14**; a
 **skill system** lands as **M15**. The original M3 was split: OpenAI ships first as M4, Anthropic deferred to M11. The original M4 (tools) and M7 (TUI) were each split into two milestones. Context-window summarization, auto-title, SIGINT handling, `--version`, and README polish were deferred from earlier milestones into M12.
@@ -647,6 +648,42 @@ model-invoked skills for free. No new dependencies.
 
 ---
 
+## M17 — Web & GitHub tools — DONE
+
+Shipped: spec `docs/superpowers/specs/2026-06-24-m17-web-github-tools-design.md`,
+plan `docs/superpowers/plans/2026-06-24-m17-web-github-tools.md`.
+
+Outcome: five networked tools (`web_search`, `web_fetch`, `github_search_code`,
+`github_read_issue`, `github_fetch_file`) on a shared injectable HTTP substrate.
+`OpenCode.Net.Http` exposes `HttpRequest`, `HttpError`, `HttpBackend`, and
+`runHttp` (production: `Network.HTTP.Simple`); `OpenCode.Net.HttpMock` provides a
+pure URL-keyed mock for tests. Each tool is a `SomeTool` (reusing the M14
+`DynamicTool` tag) that builds an `HttpRequest`, runs it through
+`envHttpBackend`, parses JSON, and renders text.
+
+Config gains `ToolsConfig { braveKey, githubKey }` following the existing
+env-over-YAML pattern (`BRAVE_API_KEY`, `GITHUB_TOKEN`). `AppEnv` gains
+`envHttpBackend` and `envTools`; `Run.withAppEnv` wires `runHttp` and passes
+`tools cfg`.
+
+- **`web_search`** — Brave Search API (`api.search.brave.com/res/v1/web/search`);
+  renders numbered title/url/snippet list.
+- **`web_fetch`** — fetches any URL; `htmlToText` (tagsoup) strips
+  head/script/style sections; truncation at 10 000 chars (hard cap 50 000).
+- **`github_search_code`** — GitHub code search API; renders repo/path/url list.
+  Exports `githubHeaders` shared by all GitHub tools.
+- **`github_read_issue`** — reads issue or PR (`/issues/` vs `/pulls/` by kind);
+  body truncated at 4 000 chars.
+- **`github_fetch_file`** — GitHub contents API with base64 decoding
+  (`base64-bytestring`); optional `ref` parameter; content truncated at 10 000
+  chars.
+
+New dependencies: `tagsoup >= 0.14`, `case-insensitive >= 1.2`,
+`base64-bytestring >= 1.2`. 20 new tests (3 per tool + 2 for HttpSpec + 3 for
+htmlToText). All registered in `OpenCode.Tool.Registry`.
+
+---
+
 ## Dependency notes
 
 - Stack resolver: `lts-22.39` (GHC 9.6.6).
@@ -659,4 +696,4 @@ model-invoked skills for free. No new dependencies.
 
 ## Still out of scope
 
-- **LSP integration**, **GitHub / web search tools**, **multi-tenant remote sessions** — per SPEC §1.
+- **LSP integration**, **multi-tenant remote sessions** — per SPEC §1.

@@ -16,8 +16,9 @@ import Database.SQLite.Simple (close)
 import System.Timeout (timeout)
 
 import OpenCode.App (AppEnv (..))
-import OpenCode.Config (Config (..), ProviderConfig (..))
+import OpenCode.Config (Config (..), ProviderConfig (..), ToolsConfig (..))
 import OpenCode.DB (insertSession, newSessionId, openDb)
+import OpenCode.Net.Http (runHttp)
 import OpenCode.Tool.Registry (defaultBuiltinRegistry)
 import OpenCode.Types
   ( ApiKey (..)
@@ -42,6 +43,7 @@ withTestEnv action = bracket (openDb ":memory:") close $ \conn -> do
             }
         , defaultModel = ModelId OpenAI "gpt-4o"
         , mcpServers   = []
+        , tools        = ToolsConfig Nothing Nothing
         }
       session = Session
         { sessionId      = sid
@@ -51,13 +53,15 @@ withTestEnv action = bracket (openDb ":memory:") close $ \conn -> do
         }
   insertSession conn session
   let env = AppEnv
-        { envConfig    = cfg
-        , envDb        = conn
-        , envRegistry  = defaultBuiltinRegistry
-        , envEventChan = chan
-        , envAbort     = abortVar
-        , envMcp       = []
-        , envSkills    = []
+        { envConfig      = cfg
+        , envDb          = conn
+        , envRegistry    = defaultBuiltinRegistry
+        , envEventChan   = chan
+        , envAbort       = abortVar
+        , envMcp         = []
+        , envSkills      = []
+        , envHttpBackend = runHttp
+        , envTools       = ToolsConfig Nothing Nothing
         }
   action env session
 
@@ -87,6 +91,7 @@ mkDummyEnv mkey = do
             { openaiKey = mkey, anthropicKey = Nothing, minimaxKey = Nothing }
         , defaultModel = ModelId OpenAI "gpt-4o"
         , mcpServers   = []
+        , tools        = ToolsConfig Nothing Nothing
         }
   pure AppEnv
     { envConfig    = cfg
@@ -94,8 +99,10 @@ mkDummyEnv mkey = do
     , envRegistry  = defaultBuiltinRegistry
     , envEventChan = chan
     , envAbort     = abortVar
-    , envMcp       = []
-    , envSkills    = []
+    , envMcp         = []
+    , envSkills      = []
+    , envHttpBackend = runHttp
+    , envTools       = ToolsConfig Nothing Nothing
     }
 
 -- | Dummy env with a (stub) OpenAI key present.

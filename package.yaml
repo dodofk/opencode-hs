@@ -76,6 +76,10 @@ dependencies:
   - Diff >= 0.4
   # HTML stripping (M17 web_fetch)
   - tagsoup >= 0.14
+  # Case-insensitive header keys (M17 HTTP substrate)
+  - case-insensitive >= 1.2
+  # Base64 decoding (M17 github_fetch_file)
+  - base64-bytestring >= 1.2
   # Unix signals
   - unix >= 2.8
   # MCP — added back in M6 once we resolve mcp-server/aeson compatibility
@@ -112,6 +116,11 @@ library:
     - OpenCode.Tool.Bash
     - OpenCode.Tool.Glob
     - OpenCode.Tool.Grep
+    - OpenCode.Tool.WebSearch
+    - OpenCode.Tool.WebFetch
+    - OpenCode.Tool.GitHubSearch
+    - OpenCode.Tool.GitHubIssue
+    - OpenCode.Tool.GitHubFile
     - OpenCode.TUI.Types
     - OpenCode.TUI.Overlay
     - OpenCode.TUI.Render
@@ -121,6 +130,8 @@ library:
     - OpenCode.MCP.Client
     - OpenCode.MCP.Adapters
     - OpenCode.MCP.Startup
+    - OpenCode.Net.Http
+    - OpenCode.Net.HttpMock
     - OpenCode.Skill.Types
     - OpenCode.Skill.Parse
     - OpenCode.Skill.Registry
@@ -187,11 +198,17 @@ tests:
       - OpenCode.Tool.EditFileSpec
       - OpenCode.Tool.GlobSpec
       - OpenCode.Tool.GrepSpec
+      - OpenCode.Tool.WebSearchSpec
+      - OpenCode.Tool.WebFetchSpec
+      - OpenCode.Tool.GitHubSearchSpec
+      - OpenCode.Tool.GitHubIssueSpec
+      - OpenCode.Tool.GitHubFileSpec
       - OpenCode.Tool.ReadFileSpec
       - OpenCode.Tool.RegistrySpec
       - OpenCode.Tool.TypesSpec
       - OpenCode.Tool.WriteFileSpec
       - OpenCode.Model.CatalogSpec
+      - OpenCode.Net.HttpSpec
       - OpenCode.TUI.AppSpec
       - OpenCode.TUI.CommandSpec
       - OpenCode.TUI.OverlaySpec

@@ -15,7 +15,7 @@ import Data.Either (isLeft, isRight)
 import qualified Data.List.NonEmpty as NE
 
 import OpenCode.App (AppEnv (..))
-import OpenCode.Config (Config (..), ProviderConfig (..))
+import OpenCode.Config (Config (..), ProviderConfig (..), ToolsConfig (..))
 import qualified OpenCode.DB as DB
 import OpenCode.DB (openDb)
 import OpenCode.LLM.Mock (staticStreamer, newScriptedStreamer)
@@ -366,6 +366,7 @@ cfgWith oa mm = Config
       { openaiKey = oa, anthropicKey = Nothing, minimaxKey = mm }
   , defaultModel = ModelId OpenAI "gpt-4o"
   , mcpServers   = []
+  , tools        = ToolsConfig Nothing Nothing
   }
 
 cfgAnthropic :: Config
@@ -374,6 +375,7 @@ cfgAnthropic = Config
       { openaiKey = Nothing, anthropicKey = Just (ApiKey "k"), minimaxKey = Nothing }
   , defaultModel = ModelId Anthropic "claude-opus-4-5"
   , mcpServers   = []
+  , tools        = ToolsConfig Nothing Nothing
   }
 
 withFreshEnv :: (AppEnv -> IO a) -> IO a
@@ -388,14 +390,17 @@ withFreshEnv action = bracket (openDb ":memory:") close $ \conn -> do
             }
         , defaultModel = ModelId OpenAI "gpt-4o"
         , mcpServers   = []
+        , tools        = ToolsConfig Nothing Nothing
         }
       env = AppEnv
-        { envConfig    = cfg
-        , envDb        = conn
-        , envRegistry  = defaultBuiltinRegistry
-        , envEventChan = chan
-        , envAbort     = abortVar
-        , envMcp       = []
-        , envSkills    = []
+        { envConfig      = cfg
+        , envDb          = conn
+        , envRegistry    = defaultBuiltinRegistry
+        , envEventChan   = chan
+        , envAbort       = abortVar
+        , envMcp         = []
+        , envSkills      = []
+        , envHttpBackend = undefined
+        , envTools       = ToolsConfig Nothing Nothing
         }
   action env

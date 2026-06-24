@@ -89,8 +89,10 @@ runTool reg name args = do
         , envRegistry  = undefined
         , envEventChan = undefined
         , envAbort     = undefined
-        , envMcp       = []
-        , envSkills    = []
+        , envMcp         = []
+        , envSkills      = []
+        , envHttpBackend = undefined
+        , envTools       = undefined
         }
   runExceptT (runReaderT (executeTool reg name args) env)
 
