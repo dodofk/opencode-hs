@@ -1,0 +1,7 @@
+{
+  "title": "Example issue",
+  "state": "open",
+  "user": { "login": "octocat" },
+  "body": "This is the issue body.",
+  "labels": [ { "name": "bug" } ]
+}

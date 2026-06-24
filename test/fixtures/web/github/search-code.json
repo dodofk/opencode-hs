@@ -1,0 +1,11 @@
+{
+  "total_count": 1,
+  "items": [
+    {
+      "name": "Main.hs",
+      "path": "app/Main.hs",
+      "repository": { "full_name": "dodofk/opencode-hs" },
+      "html_url": "https://github.com/dodofk/opencode-hs/blob/main/app/Main.hs"
+    }
+  ]
+}

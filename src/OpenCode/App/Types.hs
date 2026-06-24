@@ -13,8 +13,9 @@ import Control.Monad.Reader (ReaderT)
 import Database.SQLite.Simple (Connection)
 
 import OpenCode.App.Error (AppError)
-import OpenCode.Config (Config)
+import OpenCode.Config (Config, ToolsConfig)
 import OpenCode.MCP.Client (McpClient)
+import OpenCode.Net.Http (HttpBackend)
 import OpenCode.Skill.Types (Skill)
 import OpenCode.Session.Events (SessionEvent)
 import OpenCode.Tool.Types (ToolRegistry)
@@ -22,11 +23,13 @@ import OpenCode.Tool.Types (ToolRegistry)
 type AppM = ReaderT AppEnv (ExceptT AppError IO)
 
 data AppEnv = AppEnv
-  { envConfig    :: Config
-  , envDb        :: Connection
-  , envRegistry  :: ToolRegistry
-  , envEventChan :: BChan SessionEvent
-  , envAbort     :: TVar Bool
-  , envMcp       :: [McpClient]
-  , envSkills    :: [Skill]
+  { envConfig      :: Config
+  , envDb          :: Connection
+  , envRegistry    :: ToolRegistry
+  , envEventChan   :: BChan SessionEvent
+  , envAbort       :: TVar Bool
+  , envMcp         :: [McpClient]
+  , envSkills      :: [Skill]
+  , envHttpBackend :: HttpBackend
+  , envTools       :: ToolsConfig
   }

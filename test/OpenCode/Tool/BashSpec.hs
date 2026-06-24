@@ -64,8 +64,10 @@ runBash input = do
         , envRegistry  = undefined
         , envEventChan = undefined
         , envAbort     = undefined
-        , envMcp       = []
-        , envSkills    = []
+        , envMcp         = []
+        , envSkills      = []
+        , envHttpBackend = undefined
+        , envTools       = undefined
         }
       args = Aeson.toJSON input
   runExceptT (runReaderT (executeTool reg "bash" args) env)

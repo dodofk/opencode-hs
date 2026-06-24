@@ -49,6 +49,7 @@ import OpenCode.CLI
   )
 import OpenCode.Config
   ( Config (..), ProviderConfig (..), defaultAnthropicModel, defaultMiniMaxModel, loadConfig )
+import OpenCode.Net.Http (runHttp)
 import qualified OpenCode.DB as DB
 import OpenCode.LLM.Types (LLMRequest (..), Streamer)
 import OpenCode.MCP.Adapters (PromptEntry (..), promptEntries)
@@ -144,14 +145,16 @@ withAppEnv registry spawnMcp k = do
               | c <- clients, e <- promptEntries c ]
             skills = buildSkillRegistry reserved (localSkills ++ mcpSkills)
         let env = AppEnv
-              { envConfig    = cfg
-              , envDb        = conn
-              , envRegistry  = maybe id Tool.registerTool (skillTool clients skills)
-                                 (mcpRegistryAdditions clients registry)
-              , envEventChan = chan
-              , envAbort     = abortVar
-              , envMcp       = clients
-              , envSkills    = skills
+              { envConfig      = cfg
+              , envDb          = conn
+              , envRegistry    = maybe id Tool.registerTool (skillTool clients skills)
+                                   (mcpRegistryAdditions clients registry)
+              , envEventChan   = chan
+              , envAbort       = abortVar
+              , envMcp         = clients
+              , envSkills      = skills
+              , envHttpBackend = runHttp
+              , envTools       = tools cfg
               }
         armed <- STM.newTVarIO False
         -- NOTE: the SIGINT hard-exit timer (see 'onSigInt') calls

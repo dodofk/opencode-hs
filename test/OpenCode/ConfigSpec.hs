@@ -92,7 +92,7 @@ spec = do
           model    (defaultModel c) `shouldBe` "MiniMax-M3"
 
     it "prefers MiniMax over OpenAI for the default model when both keys are set" $
-      case buildConfig emptyConfigFile (EnvOverride (Just (ApiKey "sk")) Nothing (Just (ApiKey "mk"))) of
+      case buildConfig emptyConfigFile (noEnv { eoOpenAIKey = Just (ApiKey "sk"), eoMiniMaxKey = Just (ApiKey "mk") }) of
         Left  err -> expectationFailure (show err)
         Right c   -> provider (defaultModel c) `shouldBe` MiniMax
 
@@ -156,6 +156,68 @@ spec = do
         Left  err -> expectationFailure (show err)
         Right cfg -> map (mcsEnabled . snd) (mcpServers cfg) `shouldBe` [False]
 
+  describe "tools config (brave/github keys)" $ do
+
+    it "reads braveApiKey from YAML" $ do
+      let yaml = Text.unlines
+            [ "providers: { openai: { apiKey: sk-x } }"
+            , "tools:"
+            , "  braveApiKey: { apiKey: BSA-yaml }"
+            ]
+      cf <- either (fail . show) pure (Yaml.decodeEither' (Text.encodeUtf8 yaml))
+      case buildConfig cf noEnv of
+        Left  err -> expectationFailure (show err)
+        Right cfg -> braveKey (tools cfg) `shouldBe` Just (ApiKey "BSA-yaml")
+
+    it "reads githubToken from YAML" $ do
+      let yaml = Text.unlines
+            [ "providers: { openai: { apiKey: sk-x } }"
+            , "tools:"
+            , "  githubToken: { apiKey: ghp-yaml }"
+            ]
+      cf <- either (fail . show) pure (Yaml.decodeEither' (Text.encodeUtf8 yaml))
+      case buildConfig cf noEnv of
+        Left  err -> expectationFailure (show err)
+        Right cfg -> githubKey (tools cfg) `shouldBe` Just (ApiKey "ghp-yaml")
+
+    it "BRAVE_API_KEY env var overrides YAML" $ do
+      let cfg = emptyConfigFile
+            { cfProviders = Just ProviderConfigFile
+                { cfOpenai = Just (ApiKeyFile (ApiKey "sk-x")), cfAnthropic = Nothing, cfMiniMax = Nothing }
+            , cfTools = Just ToolsConfigFile
+                { tcfBrave = Just (ApiKeyFile (ApiKey "BSA-yaml"))
+                , tcfGithub = Nothing
+                }
+            }
+          env = noEnv { eoBraveKey = Just (ApiKey "BSA-env") }
+      case buildConfig cfg env of
+        Left  err -> expectationFailure (show err)
+        Right c   -> braveKey (tools c) `shouldBe` Just (ApiKey "BSA-env")
+
+    it "GITHUB_TOKEN env var overrides YAML" $ do
+      let cfg = emptyConfigFile
+            { cfProviders = Just ProviderConfigFile
+                { cfOpenai = Just (ApiKeyFile (ApiKey "sk-x")), cfAnthropic = Nothing, cfMiniMax = Nothing }
+            , cfTools = Just ToolsConfigFile
+                { tcfBrave = Nothing
+                , tcfGithub = Just (ApiKeyFile (ApiKey "ghp-yaml"))
+                }
+            }
+          env = noEnv { eoGithubKey = Just (ApiKey "ghp-env") }
+      case buildConfig cfg env of
+        Left  err -> expectationFailure (show err)
+        Right c   -> githubKey (tools c) `shouldBe` Just (ApiKey "ghp-env")
+
+    it "both tool keys default to Nothing when absent" $
+      case buildConfig (cfWithOpenAI "sk-x") noEnv of
+        Left  err -> expectationFailure (show err)
+        Right c   -> do
+          braveKey  (tools c) `shouldBe` Nothing
+          githubKey (tools c) `shouldBe` Nothing
+
+    it "still boots (Right) with only an LLM key, no tool keys" $
+      buildConfig (cfWithOpenAI "sk-x") noEnv `shouldSatisfy` isRight
+
   describe "loadConfigFile" $ do
 
     it "returns Right for a missing file (fresh install)" $
@@ -215,16 +277,16 @@ spec = do
 -- ---------------------------------------------------------------------------
 
 noEnv :: EnvOverride
-noEnv = EnvOverride Nothing Nothing Nothing
+noEnv = EnvOverride Nothing Nothing Nothing Nothing Nothing
 
 openaiEnv :: Text -> EnvOverride
-openaiEnv k = EnvOverride (Just (ApiKey k)) Nothing Nothing
+openaiEnv k = noEnv { eoOpenAIKey = Just (ApiKey k) }
 
 anthropicEnv :: Text -> EnvOverride
-anthropicEnv k = EnvOverride Nothing (Just (ApiKey k)) Nothing
+anthropicEnv k = noEnv { eoAnthropicKey = Just (ApiKey k) }
 
 minimaxEnv :: Text -> EnvOverride
-minimaxEnv k = EnvOverride Nothing Nothing (Just (ApiKey k))
+minimaxEnv k = noEnv { eoMiniMaxKey = Just (ApiKey k) }
 
 cfWithOpenAI :: Text -> ConfigFile
 cfWithOpenAI k = emptyConfigFile

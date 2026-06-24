@@ -1,0 +1,16 @@
+{
+  "web": {
+    "results": [
+      {
+        "title": "Haskell Language",
+        "url": "https://www.haskell.org/",
+        "description": "An advanced, purely functional programming language."
+      },
+      {
+        "title": "Learn You a Haskell",
+        "url": "https://learnyouahaskell.com/",
+        "description": "Introductory Haskell tutorial."
+      }
+    ]
+  }
+}
