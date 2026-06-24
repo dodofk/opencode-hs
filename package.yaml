@@ -74,6 +74,8 @@ dependencies:
   - optparse-applicative >= 0.18
   # Diff (for EditFile)
   - Diff >= 0.4
+  # HTML stripping (M17 web_fetch)
+  - tagsoup >= 0.14
   # Unix signals
   - unix >= 2.8
   # MCP — added back in M6 once we resolve mcp-server/aeson compatibility
