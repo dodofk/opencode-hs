@@ -4,11 +4,12 @@ Each milestone is self-contained, testable, and merges as a single PR.
 Milestones are sequenced; no parallelism is assumed for solo development.
 Acceptance for each is one or more concrete shell commands plus expected outcome — not narrative.
 
-## Status snapshot (as of 2026-06-05)
+## Status snapshot (as of 2026-06-11)
 
-v1 (M0–M12) is complete. M13–M15 are the post-v1 roadmap, brainstormed as
-sub-projects A/B/C and sequenced A → B → C (each builds substrate the next
-reuses). Each gets its own spec → plan → implementation cycle.
+v1 (M0–M12) is complete. M13–M16 are the post-v1 roadmap, brainstormed as
+sub-projects A/B/C (M13–M15) sequenced A → B → C, followed by M16 (a focused
+follow-on to M15 that makes skills model-invokable). Each gets its own spec →
+plan → implementation cycle.
 
 | #   | Title                                  | Status    | Commit / PR        |
 | --- | -------------------------------------- | --------- | ------------------ |
@@ -29,6 +30,7 @@ reuses). Each gets its own spec → plan → implementation cycle.
 | M13.1 | Slash-command autocomplete             | done      | `8f2e9b1..`        |
 | M14 | MCP client (dynamic external tools)    | done      | `730a582..`        |
 | M15 | Skill system (local SKILL.md + MCP prompts) | done    | `4965a44..`        |
+| M16 | Model-invoked skills (the `skill` tool) | done     | `bec445d..`        |
 
 MCP support was **dropped from v1** and is now scheduled post-v1 as **M14**; a
 **skill system** lands as **M15**. The original M3 was split: OpenAI ships first as M4, Anthropic deferred to M11. The original M4 (tools) and M7 (TUI) were each split into two milestones. Context-window summarization, auto-title, SIGINT handling, `--version`, and README polish were deferred from earlier milestones into M12.
